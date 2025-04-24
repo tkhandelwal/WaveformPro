@@ -1,4 +1,4 @@
-# Power Data Analysis Tool
+# Waveform Pro - Power Data Analysis Tool
 
 ## Supported Data Formats
 

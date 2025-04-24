@@ -1,0 +1,1308 @@
+import plotly.graph_objs as go
+import plotly.subplots as sp
+import numpy as np
+from scipy import signal
+import logging
+import plotly.express as px
+from config import DARK_MODE_STYLES, LIGHT_MODE_STYLES
+
+logger = logging.getLogger(__name__)
+
+class PlotGenerator:
+    def create_time_domain_plot(self, data, show_mean=True, show_rms=True, show_envelope=False, dark_mode=False):
+        """Create time domain plot from data"""
+        if data is None or 'current' not in data or len(data['current']) == 0:
+            return go.Figure()
+            
+        # Create figure
+        fig = go.Figure()
+        
+        # Add main current trace
+        fig.add_trace(go.Scatter(
+            x=data['time'],
+            y=data['current'],
+            mode='lines',
+            name='Current',
+            line=dict(color=DARK_MODE_STYLES['button_primary'] if dark_mode else LIGHT_MODE_STYLES['button_primary'], width=1)
+        ))
+        
+        # Add mean line if requested
+        if show_mean:
+            mean_value = np.mean(data['current'])
+            fig.add_trace(go.Scatter(
+                x=[data['time'][0], data['time'][-1]],
+                y=[mean_value, mean_value],
+                mode='lines',
+                name='Mean',
+                line=dict(color='red', width=1, dash='dash')
+            ))
+        
+        # Add RMS line if requested
+        if show_rms:
+            rms_value = np.sqrt(np.mean(np.square(data['current'])))
+            fig.add_trace(go.Scatter(
+                x=[data['time'][0], data['time'][-1]],
+                y=[rms_value, rms_value],
+                mode='lines',
+                name='RMS',
+                line=dict(color='green', width=1, dash='dot')
+            ))
+            
+            # Add negative RMS line
+            fig.add_trace(go.Scatter(
+                x=[data['time'][0], data['time'][-1]],
+                y=[-rms_value, -rms_value],
+                mode='lines',
+                name='-RMS',
+                line=dict(color='green', width=1, dash='dot'),
+                showlegend=False
+            ))
+        
+        # Add envelope if requested
+        if show_envelope:
+            # Compute analytic signal using Hilbert transform
+            analytic_signal = signal.hilbert(data['current'])
+            envelope = np.abs(analytic_signal)
+            
+            fig.add_trace(go.Scatter(
+                x=data['time'],
+                y=envelope,
+                mode='lines',
+                name='Envelope',
+                line=dict(color='purple', width=1)
+            ))
+            
+            fig.add_trace(go.Scatter(
+                x=data['time'],
+                y=-envelope,
+                mode='lines',
+                name='-Envelope',
+                line=dict(color='purple', width=1),
+                showlegend=False
+            ))
+        
+        # Update layout
+        fig.update_layout(
+            title='Time Domain Analysis',
+            xaxis_title='Time (s)',
+            yaxis_title='Current (A)',
+            template='plotly_dark' if dark_mode else 'plotly_white',
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            ),
+            margin=dict(l=50, r=50, t=80, b=50),
+            hovermode='closest'
+        )
+        
+        # Apply theme
+        fig = self._apply_theme(fig, dark_mode)
+        
+        return fig
+    
+    def create_frequency_domain_plot(self, fft_data, scale='db', max_freq=500, dark_mode=False):
+        """Create frequency domain plot from FFT data"""
+        if fft_data is None or 'freq' not in fft_data or len(fft_data['freq']) == 0:
+            return go.Figure()
+            
+        # Create figure
+        fig = go.Figure()
+        
+        # Choose magnitude or dB scale based on parameter
+        if scale == 'db':
+            y_data = fft_data['magnitude_db']
+            y_title = 'Magnitude (dB)'
+        elif scale == 'log-log':
+            y_data = fft_data['magnitude']
+            y_title = 'Magnitude (log)'
+        else:  # linear
+            y_data = fft_data['magnitude']
+            y_title = 'Magnitude'
+        
+        # Main trace
+        fig.add_trace(go.Scatter(
+            x=fft_data['freq'],
+            y=y_data,
+            mode='lines',
+            name='Magnitude Spectrum',
+            line=dict(color=DARK_MODE_STYLES['button_primary'] if dark_mode else LIGHT_MODE_STYLES['button_primary'], width=1.5)
+        ))
+        
+        # Update layout
+        fig.update_layout(
+            title='Frequency Domain Analysis',
+            xaxis_title='Frequency (Hz)',
+            yaxis_title=y_title,
+            xaxis_range=[0, max_freq],  # Limit frequency range for better visibility
+            template='plotly_dark' if dark_mode else 'plotly_white',
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            ),
+            margin=dict(l=50, r=50, t=80, b=50),
+            hovermode='closest'
+        )
+        
+        # Set log scales if needed
+        if scale == 'log-log':
+            fig.update_layout(
+                xaxis_type='log',
+                yaxis_type='log'
+            )
+        
+        # Apply theme
+        fig = self._apply_theme(fig, dark_mode)
+        
+        return fig
+    
+    def create_spectrogram_plot(self, spectrogram_data, colormap='viridis', dark_mode=False):
+        """Create spectrogram plot"""
+        if spectrogram_data is None or 'power' not in spectrogram_data:
+            return go.Figure()
+            
+        # Create figure using heatmap
+        fig = go.Figure()
+        
+        # Add heatmap
+        fig.add_trace(go.Heatmap(
+            z=spectrogram_data['power'],
+            x=spectrogram_data['time'],
+            y=spectrogram_data['freq'],
+            colorscale=colormap,
+            colorbar=dict(title='Power (dB)')
+        ))
+        
+        # Update layout
+        fig.update_layout(
+            title='Spectrogram Analysis',
+            xaxis_title='Time (s)',
+            yaxis_title='Frequency (Hz)',
+            yaxis_range=[0, min(500, max(spectrogram_data['freq']))],  # Limit to 0-500 Hz for better visibility
+            template='plotly_dark' if dark_mode else 'plotly_white',
+            margin=dict(l=50, r=50, t=80, b=50),
+            hovermode='closest'
+        )
+        
+        # Apply theme
+        fig = self._apply_theme(fig, dark_mode)
+        
+        return fig
+    
+    def create_interharmonics_plot(self, interharmonics_data, dark_mode=False):
+        """Create interharmonics analysis plot"""
+        if interharmonics_data is None or 'interharmonic_groups' not in interharmonics_data:
+            return go.Figure()
+            
+        # Extract data
+        groups = interharmonics_data['interharmonic_groups']
+        fundamental_freq = interharmonics_data['fundamental_freq']
+        
+        # Create data for bar chart
+        x = [g['group'] for g in groups]
+        y = [g['magnitude'] for g in groups]
+        frequencies = [g['frequency'] for g in groups]
+        
+        # Create figure
+        fig = go.Figure()
+        
+        # Add bar chart
+        fig.add_trace(go.Bar(
+            x=x,
+            y=y,
+            name='Magnitude',
+            marker_color=DARK_MODE_STYLES['button_primary'] if dark_mode else LIGHT_MODE_STYLES['button_primary'],
+            text=[f"{freq:.1f} Hz" for freq in frequencies],
+            textposition='inside',
+            textfont=dict(
+                color='white' if dark_mode else 'black',
+                size=10
+            )
+        ))
+        
+        # Update layout
+        fig.update_layout(
+            title=f"Interharmonics Analysis - TID: {interharmonics_data['tid']:.2f}%",
+            xaxis_title='Interharmonic Group',
+            yaxis_title='Magnitude',
+            xaxis=dict(
+                tickmode='array',
+                tickvals=x,
+                ticktext=[f"Group {g}" for g in x]
+            ),
+            template='plotly_dark' if dark_mode else 'plotly_white',
+            margin=dict(l=50, r=50, t=80, b=50),
+            hovermode='closest'
+        )
+        
+        # Apply theme
+        fig = self._apply_theme(fig, dark_mode)
+        
+        return fig
+    
+    def create_cepstrum_plot(self, cepstrum_data, dark_mode=False):
+        """Create cepstrum analysis plot"""
+        if cepstrum_data is None or 'cepstrum' not in cepstrum_data:
+            return go.Figure()
+            
+        # Extract data
+        quefrency = cepstrum_data['quefrency']
+        cepstrum = cepstrum_data['cepstrum']
+        peaks = cepstrum_data['peaks']
+        
+        # Create figure
+        fig = go.Figure()
+        
+        # Add cepstrum trace
+        fig.add_trace(go.Scatter(
+            x=quefrency,
+            y=cepstrum,
+            mode='lines',
+            name='Cepstrum',
+            line=dict(color=DARK_MODE_STYLES['button_primary'] if dark_mode else LIGHT_MODE_STYLES['button_primary'], width=1)
+        ))
+        
+        # Mark peaks
+        for i, peak in enumerate(peaks):
+            fig.add_trace(go.Scatter(
+                x=[peak['quefrency']],
+                y=[peak['amplitude']],
+                mode='markers+text',
+                name=f"Peak {i+1}",
+                text=[f"{peak['frequency']:.1f} Hz"],
+                textposition="top center",
+                marker=dict(
+                    size=10,
+                    color='red',
+                    symbol='circle'
+                ),
+                showlegend=False
+            ))
+        
+        # Update layout
+        fig.update_layout(
+            title='Cepstrum Analysis',
+            xaxis_title='Quefrency (s)',
+            yaxis_title='Amplitude',
+            template='plotly_dark' if dark_mode else 'plotly_white',
+            margin=dict(l=50, r=50, t=80, b=50),
+            hovermode='closest'
+        )
+        
+        # Apply theme
+        fig = self._apply_theme(fig, dark_mode)
+        
+        return fig    
+
+    def create_stft_plot(self, stft_data, colormap='viridis', dark_mode=False):
+        """Create STFT plot"""
+        if stft_data is None or 'magnitude_db' not in stft_data:
+            return go.Figure()
+            
+        # Create figure using heatmap
+        fig = go.Figure()
+        
+        # Add heatmap
+        fig.add_trace(go.Heatmap(
+            z=stft_data['magnitude_db'],
+            x=stft_data['time'],
+            y=stft_data['freq'],
+            colorscale=colormap,
+            colorbar=dict(title='Magnitude (dB)')
+        ))
+        
+        # Update layout
+        fig.update_layout(
+            title='Short-Time Fourier Transform (STFT)',
+            xaxis_title='Time (s)',
+            yaxis_title='Frequency (Hz)',
+            yaxis_range=[0, min(500, max(stft_data['freq']))],  # Limit to 0-500 Hz for better visibility
+            template='plotly_dark' if dark_mode else 'plotly_white',
+            margin=dict(l=50, r=50, t=80, b=50),
+            hovermode='closest'
+        )
+        
+        # Apply theme
+        fig = self._apply_theme(fig, dark_mode)
+        
+        return fig    
+    
+    def create_transient_plot(self, transient_data, dark_mode=False):
+        """Create transients analysis plot"""
+        if transient_data is None or 'type' not in transient_data or transient_data['type'] != 'transients':
+            return go.Figure()
+        
+        # Extract data
+        time = transient_data['time']
+        current = transient_data['current']
+        events = transient_data['events']
+        threshold = transient_data['threshold']
+    
+        # Create figure
+        fig = go.Figure()
+    
+        # Add current trace
+        fig.add_trace(go.Scatter(
+            x=time,
+            y=current,
+            mode='lines',
+            name='Current',
+            line=dict(color=DARK_MODE_STYLES['button_primary'] if dark_mode else LIGHT_MODE_STYLES['button_primary'], width=1)
+        ))
+    
+        # Add threshold lines
+        fig.add_trace(go.Scatter(
+            x=[time[0], time[-1]],
+            y=[threshold, threshold],
+            mode='lines',
+            name='Upper Threshold',
+            line=dict(color='red', width=1, dash='dash')
+        ))
+    
+        fig.add_trace(go.Scatter(
+            x=[time[0], time[-1]],
+            y=[-threshold, -threshold],
+            mode='lines',
+            name='Lower Threshold',
+            line=dict(color='red', width=1, dash='dash')
+        ))
+    
+        # Mark detected events with different colors based on classification
+        colors = {
+            'Impulse': 'rgba(255, 0, 0, 0.3)',  # Red
+            'Oscillatory': 'rgba(0, 255, 0, 0.3)',  # Green
+            'Swell': 'rgba(0, 0, 255, 0.3)',  # Blue
+            'Dip': 'rgba(255, 165, 0, 0.3)'   # Orange
+        }
+    
+        # Create a list of unique event types for the legend
+        event_types = set()
+    
+        for i, event in enumerate(events):
+            event_class = event.get('class', 'Unknown')
+            event_types.add(event_class)
+        
+            # Mark start and end of event with rectangle
+            fig.add_shape(
+                type="rect",
+                x0=event['start_time'],
+                x1=event['end_time'],
+                y0=min(current) - 0.1 * (max(current) - min(current)),
+                y1=max(current) + 0.1 * (max(current) - min(current)),
+                line=dict(
+                    color="rgba(0, 0, 0, 0)",
+                    width=1,
+                    dash="dot",
+                ),
+                fillcolor=colors.get(event_class, 'rgba(128, 128, 128, 0.3)'),
+                layer="below"
+            )
+        
+            # Add annotation for event number
+            fig.add_annotation(
+                x=event['peak_time'],
+                y=event['peak_value'],
+                text=f"Event {i+1}<br>{event_class}",
+                showarrow=True,
+                arrowhead=1,
+                ax=0,
+                ay=-40 if event['peak_value'] > 0 else 40
+            )
+    
+        # Add legend for event types
+        for event_type in event_types:
+            fig.add_trace(go.Scatter(
+                x=[None],
+                y=[None],
+                mode='markers',
+                marker=dict(size=10, color=colors.get(event_type, 'rgba(128, 128, 128, 0.3)')),
+                name=f"{event_type} Event"
+            ))
+    
+        # Update layout
+        fig.update_layout(
+            title=f"Transient Analysis - {len(events)} Event(s) Detected",
+            xaxis_title='Time (s)',
+            yaxis_title='Current (A)',
+            template='plotly_dark' if dark_mode else 'plotly_white',
+            margin=dict(l=50, r=50, t=80, b=50),
+            hovermode='closest',
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            )
+        )
+    
+        # Apply theme
+        fig = self._apply_theme(fig, dark_mode)
+    
+        return fig
+    
+    def create_multi_phase_correlation_plot(self, correlation_data, dark_mode=False):
+        """Create multi-phase correlation plot"""
+        if correlation_data is None or 'type' not in correlation_data or correlation_data['type'] != 'correlation':
+            return go.Figure()
+            
+        # Extract data
+        results = correlation_data['correlation_results']
+        correlation_matrix = results['correlation_matrix']
+        phase_angles = results['phase_angles']
+        phases = list(phase_angles.keys())
+        
+        # Create heatmap data
+        x_labels = phases
+        y_labels = phases
+        z_values = []
+        
+        for phase1 in y_labels:
+            row = []
+            for phase2 in x_labels:
+                row.append(correlation_matrix[phase1][phase2])
+            z_values.append(row)
+        
+        # Create correlation heatmap
+        fig = go.Figure()
+        
+        fig.add_trace(go.Heatmap(
+            z=z_values,
+            x=x_labels,
+            y=y_labels,
+            colorscale='Viridis',
+            zmin=-1, zmax=1,
+            colorbar=dict(title='Correlation'),
+            text=[[f"{z:.3f}" for z in row] for row in z_values],
+            texttemplate="%{text}",
+            textfont={"size":12}
+        ))
+        
+        # Create phase angle plot
+        angles_fig = go.Figure()
+        
+        # Convert to polar coordinates
+        reference_phase = results['reference_phase']
+        r = [1] * len(phases)
+        theta = [np.radians(phase_angles[phase]) for phase in phases]
+        
+        # Add angle markers
+        angles_fig.add_trace(go.Scatterpolar(
+            r=r,
+            theta=[np.degrees(t) for t in theta],
+            mode='markers+text',
+            marker=dict(size=12),
+            text=phases,
+            textposition="top center",
+            name='Phases'
+        ))
+        
+        # Add connecting lines
+        angles_fig.add_trace(go.Scatterpolar(
+            r=[0] + r,
+            theta=[0] + [np.degrees(t) for t in theta],
+            mode='lines',
+            line=dict(dash='dot'),
+            showlegend=False
+        ))
+        
+        # Update layout
+        angles_fig.update_layout(
+            polar=dict(
+                radialaxis=dict(visible=False, range=[0, 1]),
+                angularaxis=dict(
+                    visible=True,
+                    tickmode='array',
+                    tickvals=[0, 90, 180, -90],
+                    ticktext=['0°', '90°', '180°', '-90°']
+                )
+            ),
+            showlegend=False
+        )
+        
+        # Create combined figure with subplots
+        combined_fig = sp.make_subplots(
+            rows=1, cols=2,
+            subplot_titles=('Phase Correlation Matrix', 'Phase Angle Diagram'),
+            specs=[[{"type": "heatmap"}, {"type": "polar"}]],
+            column_widths=[0.6, 0.4]
+        )
+        
+        # Add heatmap to subplot
+        combined_fig.add_trace(go.Heatmap(
+            z=z_values,
+            x=x_labels,
+            y=y_labels,
+            colorscale='Viridis',
+            zmin=-1, zmax=1,
+            colorbar=dict(title='Correlation'),
+            text=[[f"{z:.3f}" for z in row] for row in z_values],
+            texttemplate="%{text}",
+            textfont={"size":12}
+        ), row=1, col=1)
+        
+        # Add polar plot to subplot
+        combined_fig.add_trace(go.Scatterpolar(
+            r=r,
+            theta=[np.degrees(t) for t in theta],
+            mode='markers+text',
+            marker=dict(size=12),
+            text=phases,
+            textposition="top center",
+            name='Phases'
+        ), row=1, col=2)
+        
+        # Add connecting lines
+        combined_fig.add_trace(go.Scatterpolar(
+            r=[0] + r,
+            theta=[0] + [np.degrees(t) for t in theta],
+            mode='lines',
+            line=dict(dash='dot'),
+            showlegend=False
+        ), row=1, col=2)
+        
+        # Update layout
+        combined_fig.update_layout(
+            title='Multi-Phase Correlation Analysis',
+            template='plotly_dark' if dark_mode else 'plotly_white',
+            margin=dict(l=50, r=50, t=80, b=50),
+            height=500
+        )
+        
+        # Configure polar subplot
+        combined_fig.update_layout(
+            polar=dict(
+                radialaxis=dict(visible=False, range=[0, 1]),
+                angularaxis=dict(
+                    visible=True,
+                    tickmode='array',
+                    tickvals=[0, 90, 180, -90],
+                    ticktext=['0°', '90°', '180°', '-90°']
+                )
+            )
+        )
+        
+        # Apply theme
+        combined_fig = self._apply_theme(combined_fig, dark_mode)
+        
+        return combined_fig    
+
+    def create_waveform_distortion_plot(self, distortion_data, dark_mode=False):
+        """Create waveform distortion analysis plot"""
+        if distortion_data is None or 'thd' not in distortion_data:
+            return go.Figure()
+            
+        # Create figure with subplots
+        fig = sp.make_subplots(
+            rows=2, cols=2,
+            subplot_titles=(
+                'Distortion Parameters',
+                'THD Breakdown',
+                'Top 10 Harmonics',
+                'Harmonics by Type'
+            ),
+            specs=[
+                [{"type": "table"}, {"type": "pie"}],
+                [{"type": "bar"}, {"type": "bar"}]
+            ]
+        )
+        
+        # 1. Distortion Parameters Table
+        parameters = [
+            ['THD (%)', f"{distortion_data['thd']:.2f}"],
+            ['K-Factor', f"{distortion_data['k_factor']:.2f}"],
+            ['Crest Factor', f"{distortion_data['crest_factor']:.2f}"],
+            ['Form Factor', f"{distortion_data['form_factor']:.2f}"],
+            ['Transformer Derating', f"{distortion_data['transformer_derating_factor']:.2f}"]
+        ]
+        
+        fig.add_trace(
+            go.Table(
+                header=dict(
+                    values=['Parameter', 'Value'],
+                    font=dict(size=12, color='white' if dark_mode else 'black'),
+                    fill_color=DARK_MODE_STYLES['header_bg'] if dark_mode else LIGHT_MODE_STYLES['header_bg'],
+                    align='left'
+                ),
+                cells=dict(
+                    values=list(zip(*parameters)),
+                    font=dict(size=12),
+                    fill_color=DARK_MODE_STYLES['card_bg'] if dark_mode else LIGHT_MODE_STYLES['card_bg'],
+                    align='left'
+                )
+            ),
+            row=1, col=1
+        )
+        
+        # 2. THD Breakdown Pie Chart
+        thd_breakdown = [
+            distortion_data['even_thd'],
+            distortion_data['odd_thd'] - distortion_data['triplen_thd'],  # Non-triplen odd harmonics
+            distortion_data['triplen_thd']
+        ]
+        
+        fig.add_trace(
+            go.Pie(
+                labels=['Even Harmonics', 'Odd Harmonics (Non-Triplen)', 'Triplen Harmonics'],
+                values=thd_breakdown,
+                hole=0.4,
+                textinfo='percent+label',
+                marker_colors=['rgba(55, 128, 191, 0.8)', 'rgba(219, 64, 82, 0.8)', 'rgba(50, 171, 96, 0.8)']
+            ),
+            row=1, col=2
+        )
+        
+        # 3. Top 10 Harmonics Bar Chart
+        harmonics = distortion_data['harmonics'][1:11]  # Skip fundamental, get next 10
+        
+        fig.add_trace(
+            go.Bar(
+                x=[f"H{h['harmonic']}" for h in harmonics],
+                y=[h['magnitude'] for h in harmonics],
+                text=[f"{h['magnitude']:.4f}" for h in harmonics],
+                textposition='outside',
+                marker_color=DARK_MODE_STYLES['button_primary'] if dark_mode else LIGHT_MODE_STYLES['button_primary']
+            ),
+            row=2, col=1
+        )
+        
+        # 4. Harmonics by Type
+        even_data = [distortion_data['even_thd']]
+        odd_data = [distortion_data['odd_thd'] - distortion_data['triplen_thd']]
+        triplen_data = [distortion_data['triplen_thd']]
+        
+        fig.add_trace(
+            go.Bar(
+                x=['Even THD'],
+                y=even_data,
+                name='Even',
+                text=[f"{val:.2f}%" for val in even_data],
+                textposition='outside',
+                marker_color='rgba(55, 128, 191, 0.8)'
+            ),
+            row=2, col=2
+        )
+        
+        fig.add_trace(
+            go.Bar(
+                x=['Odd THD (Non-Triplen)'],
+                y=odd_data,
+                name='Odd (Non-Triplen)',
+                text=[f"{val:.2f}%" for val in odd_data],
+                textposition='outside',
+                marker_color='rgba(219, 64, 82, 0.8)'
+            ),
+            row=2, col=2
+        )
+        
+        fig.add_trace(
+            go.Bar(
+                x=['Triplen THD'],
+                y=triplen_data,
+                name='Triplen',
+                text=[f"{val:.2f}%" for val in triplen_data],
+                textposition='outside',
+                marker_color='rgba(50, 171, 96, 0.8)'
+            ),
+            row=2, col=2
+        )
+        
+        # Update layout
+        fig.update_layout(
+            title='Waveform Distortion Analysis',
+            template='plotly_dark' if dark_mode else 'plotly_white',
+            height=800,
+            showlegend=False
+        )
+        
+        # Update axes
+        fig.update_xaxes(title_text='Harmonic', row=2, col=1)
+        fig.update_yaxes(title_text='Magnitude', row=2, col=1)
+        
+        fig.update_xaxes(title_text='Type', row=2, col=2)
+        fig.update_yaxes(title_text='THD (%)', row=2, col=2)
+        
+        # Apply theme
+        fig = self._apply_theme(fig, dark_mode)
+        
+        return fig
+
+    def create_harmonics_plot(self, harmonics_data, num_harmonics=15, dark_mode=False):
+        """Create harmonics bar chart"""
+        if harmonics_data is None or 'harmonics' not in harmonics_data:
+            return go.Figure()
+            
+        # Extract data
+        harmonics = harmonics_data['harmonics'][:num_harmonics]
+        
+        # Create data for bar chart
+        x = [h['harmonic'] for h in harmonics]
+        y = [h['magnitude'] for h in harmonics]
+        frequencies = [h['frequency'] for h in harmonics]
+        
+        # Create figure
+        fig = go.Figure()
+        
+        # Add bar chart
+        fig.add_trace(go.Bar(
+            x=x,
+            y=y,
+            name='Magnitude',
+            marker_color=DARK_MODE_STYLES['button_primary'] if dark_mode else LIGHT_MODE_STYLES['button_primary'],
+            text=[f"{freq:.1f} Hz" for freq in frequencies],
+            textposition='inside',
+            textfont=dict(
+                color='white' if dark_mode else 'black',
+                size=10
+            )
+        ))
+        
+        # Update layout
+        fig.update_layout(
+            title=f"Harmonic Spectrum - THD: {harmonics_data['thd']:.2f}%",
+            xaxis_title='Harmonic',
+            yaxis_title='Magnitude',
+            xaxis=dict(
+                tickmode='array',
+                tickvals=x,
+                ticktext=[f"H{h}" for h in x]
+            ),
+            template='plotly_dark' if dark_mode else 'plotly_white',
+            margin=dict(l=50, r=50, t=80, b=50),
+            hovermode='closest'
+        )
+        
+        # Apply theme
+        fig = self._apply_theme(fig, dark_mode)
+        
+        return fig
+    
+    def create_harmonic_components_plot(self, harmonics_data, num_harmonics=5, dark_mode=False):
+        """Create individual harmonic components plot"""
+        if harmonics_data is None or 'harmonics' not in harmonics_data:
+            return go.Figure()
+            
+        # Extract data for the first n harmonics
+        harmonics = harmonics_data['harmonics'][:num_harmonics]
+        fund_freq = harmonics_data['fundamental_freq']
+        
+        # Create time array (one cycle of fundamental)
+        t = np.linspace(0, 1/fund_freq, 1000)
+        
+        # Create figure
+        fig = go.Figure()
+        
+        # Create waveforms for each harmonic
+        colors = px.colors.qualitative.Plotly
+        for i, h in enumerate(harmonics):
+            magnitude = h['magnitude']
+            frequency = h['frequency']
+            phase = h['phase']
+            
+            # Generate waveform
+            y = magnitude * np.sin(2 * np.pi * frequency * t + phase)
+            
+            # Add trace
+            fig.add_trace(go.Scatter(
+                x=t,
+                y=y,
+                mode='lines',
+                name=f"H{i+1} ({frequency:.1f} Hz)",
+                line=dict(color=colors[i % len(colors)], width=2)
+            ))
+        
+        # Update layout
+        fig.update_layout(
+            title='Individual Harmonic Components',
+            xaxis_title='Time (s)',
+            yaxis_title='Amplitude',
+            template='plotly_dark' if dark_mode else 'plotly_white',
+            margin=dict(l=50, r=50, t=80, b=50),
+            hovermode='closest'
+        )
+        
+        # Apply theme
+        fig = self._apply_theme(fig, dark_mode)
+        
+        return fig
+    
+    def create_signal_reconstruction_plot(self, harmonics_data, selected_harmonics=None, dark_mode=False):
+        """Create signal reconstruction plot from selected harmonics"""
+        if harmonics_data is None or 'harmonics' not in harmonics_data:
+            return go.Figure()
+            
+        # If selected_harmonics is None, use all harmonics
+        if selected_harmonics is None:
+            selected_harmonics = [h+1 for h in range(len(harmonics_data['harmonics']))]
+        
+        # Extract data
+        harmonics = harmonics_data['harmonics']
+        fund_freq = harmonics_data['fundamental_freq']
+        
+        # Create time array (one cycle of fundamental)
+        t = np.linspace(0, 1/fund_freq, 1000)
+        
+        # Create original signal (all harmonics)
+        y_original = np.zeros_like(t)
+        for h in harmonics:
+            magnitude = h['magnitude']
+            frequency = h['frequency']
+            phase = h['phase']
+            y_original += magnitude * np.sin(2 * np.pi * frequency * t + phase)
+        
+        # Create reconstructed signal (selected harmonics)
+        y_reconstructed = np.zeros_like(t)
+        for h_num in selected_harmonics:
+            if h_num <= len(harmonics):
+                h = harmonics[h_num-1]
+                magnitude = h['magnitude']
+                frequency = h['frequency']
+                phase = h['phase']
+                y_reconstructed += magnitude * np.sin(2 * np.pi * frequency * t + phase)
+        
+        # Create figure
+        fig = go.Figure()
+        
+        # Add traces
+        fig.add_trace(go.Scatter(
+            x=t,
+            y=y_original,
+            mode='lines',
+            name='Original',
+            line=dict(color='gray', width=1)
+        ))
+        
+        fig.add_trace(go.Scatter(
+            x=t,
+            y=y_reconstructed,
+            mode='lines',
+            name='Reconstructed',
+            line=dict(color=DARK_MODE_STYLES['button_primary'] if dark_mode else LIGHT_MODE_STYLES['button_primary'], width=2)
+        ))
+        
+        # Update layout
+        fig.update_layout(
+            title='Signal Reconstruction from Selected Harmonics',
+            xaxis_title='Time (s)',
+            yaxis_title='Current (A)',
+            template='plotly_dark' if dark_mode else 'plotly_white',
+            margin=dict(l=50, r=50, t=80, b=50),
+            hovermode='closest'
+        )
+        
+        # Apply theme
+        fig = self._apply_theme(fig, dark_mode)
+        
+        return fig
+    
+    def create_wavelet_plot(self, wavelet_data, dark_mode=False):
+        """Create wavelet decomposition plot"""
+        if wavelet_data is None or 'approximation' not in wavelet_data:
+            return go.Figure()
+        
+        # Extract data
+        time = wavelet_data['time']
+        approximation = wavelet_data['approximation']
+        details = wavelet_data['details']
+        level = wavelet_data['level']
+        
+        # Create figure with subplots
+        fig = sp.make_subplots(
+            rows=level+1, 
+            cols=1,
+            subplot_titles=['Original'] + [f'Level {i+1}' for i in range(level)],
+            vertical_spacing=0.05
+        )
+        
+        # Add original (approximation) trace
+        fig.add_trace(
+            go.Scatter(
+                x=time, 
+                y=approximation,
+                mode='lines',
+                name='Original',
+                line=dict(color=DARK_MODE_STYLES['button_primary'] if dark_mode else LIGHT_MODE_STYLES['button_primary'])
+            ),
+            row=1, col=1
+        )
+        
+        # Add detail traces
+        colors = px.colors.qualitative.Plotly
+        for i, detail in enumerate(details):
+            fig.add_trace(
+                go.Scatter(
+                    x=time, 
+                    y=detail,
+                    mode='lines',
+                    name=f'Level {i+1}',
+                    line=dict(color=colors[(i+1) % len(colors)])
+                ),
+                row=i+2, col=1
+            )
+        
+        # Update layout
+        fig.update_layout(
+            title=f'Wavelet Analysis ({wavelet_data["wavelet_type"]}) - {level} levels',
+            template='plotly_dark' if dark_mode else 'plotly_white',
+            height=200*(level+1),
+            showlegend=True,
+            hovermode='closest'
+        )
+        
+        # Update y-axis titles
+        fig.update_yaxes(title_text='Current (A)', row=1, col=1)
+        for i in range(level):
+            fig.update_yaxes(title_text='Amplitude', row=i+2, col=1)
+        
+        # Update x-axis labels (only show on bottom plot)
+        for i in range(level):
+            fig.update_xaxes(showticklabels=False, row=i+1, col=1)
+        fig.update_xaxes(title_text='Time (s)', row=level+1, col=1)
+        
+        # Apply theme
+        fig = self._apply_theme(fig, dark_mode)
+        
+        return fig
+    
+    def create_flicker_plot(self, flicker_data, dark_mode=False):
+        """Create flicker analysis plot"""
+        if flicker_data is None or 'type' not in flicker_data or flicker_data['type'] != 'flicker':
+            return go.Figure()
+            
+        # Extract data
+        time = flicker_data['time']
+        current = flicker_data['current']
+        envelope = flicker_data['envelope']
+        
+        # Create figure
+        fig = go.Figure()
+        
+        # Add current trace
+        fig.add_trace(go.Scatter(
+            x=time,
+            y=current,
+            mode='lines',
+            name='Current',
+            line=dict(color=DARK_MODE_STYLES['button_primary'] if dark_mode else LIGHT_MODE_STYLES['button_primary'], width=1)
+        ))
+        
+        # Add envelope trace
+        fig.add_trace(go.Scatter(
+            x=time,
+            y=envelope,
+            mode='lines',
+            name='Envelope',
+            line=dict(color='red', width=1)
+        ))
+        
+        # Add negative envelope trace
+        fig.add_trace(go.Scatter(
+            x=time,
+            y=-envelope,
+            mode='lines',
+            name='-Envelope',
+            line=dict(color='red', width=1),
+            showlegend=False
+        ))
+        
+        # Update layout
+        fig.update_layout(
+            title=f"Flicker Analysis - NVL36 Phase 1",
+            xaxis_title='Time (s)',
+            yaxis_title='Current (A)',
+            template='plotly_dark' if dark_mode else 'plotly_white',
+            margin=dict(l=50, r=50, t=80, b=50),
+            hovermode='closest'
+        )
+        
+        # Apply theme
+        fig = self._apply_theme(fig, dark_mode)
+        
+        return fig
+    
+    def create_transients_plot(self, transients_data, dark_mode=False):
+        """Create transients analysis plot"""
+        if transients_data is None or 'type' not in transients_data or transients_data['type'] != 'transients':
+            return go.Figure()
+            
+        # Extract data
+        time = transients_data['time']
+        current = transients_data['current']
+        events = transients_data['events']
+        baseline_rms = transients_data['baseline_rms']
+        
+        # Create figure
+        fig = go.Figure()
+        
+        # Add current trace
+        fig.add_trace(go.Scatter(
+            x=time,
+            y=current,
+            mode='lines',
+            name='Current',
+            line=dict(color=DARK_MODE_STYLES['button_primary'] if dark_mode else LIGHT_MODE_STYLES['button_primary'], width=1)
+        ))
+        
+        # Add baseline trace
+        fig.add_trace(go.Scatter(
+            x=[time[0], time[-1]],
+            y=[0, 0],
+            mode='lines',
+            name='Baseline',
+            line=dict(color='green', width=1, dash='dash')
+        ))
+        
+        # Mark detected events with vertical lines
+        for event in events:
+            fig.add_vline(
+                x=event['start_time'],
+                line_width=1,
+                line_dash="dash",
+                line_color="red"
+            )
+        
+        # Update layout
+        fig.update_layout(
+            title=f"Transient Analysis - NVL36 Phase 3",
+            xaxis_title='Time (s)',
+            yaxis_title='Current (A)',
+            template='plotly_dark' if dark_mode else 'plotly_white',
+            margin=dict(l=50, r=50, t=80, b=50),
+            hovermode='closest'
+        )
+        
+        # Apply theme
+        fig = self._apply_theme(fig, dark_mode)
+        
+        return fig
+    
+    def create_multi_phase_harmonic_plot(self, multi_phase_data, plot_style='overlay', dark_mode=False):
+        """Create multi-phase harmonics comparison plot"""
+        if multi_phase_data is None or 'type' not in multi_phase_data or multi_phase_data['type'] != 'thd':
+            return go.Figure()
+            
+        # Extract data
+        phase_results = multi_phase_data['phase_results']
+        phases = list(phase_results.keys())
+        
+        if plot_style == 'overlay':
+            # Create figure
+            fig = go.Figure()
+            
+            # Add traces for each phase
+            colors = px.colors.qualitative.Plotly
+            for i, phase in enumerate(phases):
+                phase_data = phase_results[phase]
+                
+                # Extract harmonic data
+                harmonics = phase_data['harmonics']
+                x = [h['harmonic'] for h in harmonics[:10]]  # First 10 harmonics
+                y = [h['magnitude'] for h in harmonics[:10]]
+                
+                # Add bar chart
+                fig.add_trace(go.Bar(
+                    x=x,
+                    y=y,
+                    name=f'Phase {phase}',
+                    marker_color=colors[i % len(colors)]
+                ))
+            
+            # Update layout
+            fig.update_layout(
+                title=f"Multi-Phase Harmonic Comparison - NVL36",
+                xaxis_title='Harmonic',
+                yaxis_title='Magnitude',
+                barmode='group',
+                template='plotly_dark' if dark_mode else 'plotly_white',
+                margin=dict(l=50, r=50, t=80, b=50),
+                hovermode='closest'
+            )
+        else:  # Separate
+            # Create figure with subplots
+            fig = sp.make_subplots(
+                rows=len(phases), 
+                cols=1,
+                subplot_titles=[f'Phase {phase}' for phase in phases],
+                vertical_spacing=0.1
+            )
+            
+            # Add traces for each phase
+            colors = px.colors.qualitative.Plotly
+            for i, phase in enumerate(phases):
+                phase_data = phase_results[phase]
+                
+                # Extract harmonic data
+                harmonics = phase_data['harmonics']
+                x = [h['harmonic'] for h in harmonics[:10]]  # First 10 harmonics
+                y = [h['magnitude'] for h in harmonics[:10]]
+                
+                # Add bar chart
+                fig.add_trace(
+                    go.Bar(
+                        x=x,
+                        y=y,
+                        name=f'Phase {phase}',
+                        marker_color=colors[i % len(colors)]
+                    ),
+                    row=i+1, col=1
+                )
+            
+            # Update layout
+            fig.update_layout(
+                title=f"Multi-Phase Harmonic Analysis - GB200_2",
+                template='plotly_dark' if dark_mode else 'plotly_white',
+                height=300*len(phases),
+                showlegend=True,
+                hovermode='closest'
+            )
+            
+            # Update y-axis title
+            for i in range(len(phases)):
+                fig.update_yaxes(title_text='Magnitude', row=i+1, col=1)
+            
+            # Update x-axis (only show on bottom plot)
+            for i in range(len(phases)-1):
+                fig.update_xaxes(showticklabels=False, row=i+1, col=1)
+            fig.update_xaxes(title_text='Harmonic', row=len(phases), col=1)
+        
+        # Apply theme
+        fig = self._apply_theme(fig, dark_mode)
+        
+        return fig
+    
+    def create_multi_phase_fft_plot(self, multi_phase_data, plot_style='overlay', dark_mode=False):
+        """Create multi-phase FFT comparison plot"""
+        if multi_phase_data is None or 'type' not in multi_phase_data or multi_phase_data['type'] != 'fft':
+            return go.Figure()
+            
+        # Extract data
+        phase_results = multi_phase_data['phase_results']
+        phases = list(phase_results.keys())
+        
+        if plot_style == 'overlay':
+            # Create figure
+            fig = go.Figure()
+            
+            # Add traces for each phase
+            colors = px.colors.qualitative.Plotly
+            for i, phase in enumerate(phases):
+                phase_data = phase_results[phase]
+                
+                # Add FFT trace
+                fig.add_trace(go.Scatter(
+                    x=phase_data['freq'],
+                    y=phase_data['magnitude'],
+                    mode='lines',
+                    name=f'Phase {phase}',
+                    line=dict(color=colors[i % len(colors)], width=1.5)
+                ))
+            
+            # Update layout
+            fig.update_layout(
+                title=f"Multi-Phase FFT Analysis - GB200_2",
+                xaxis_title='Frequency (Hz)',
+                yaxis_title='Magnitude',
+                xaxis_range=[0, 500],  # Limit frequency range
+                template='plotly_dark' if dark_mode else 'plotly_white',
+                margin=dict(l=50, r=50, t=80, b=50),
+                hovermode='closest'
+            )
+        else:  # Separate
+            # Create figure with subplots
+            fig = sp.make_subplots(
+                rows=len(phases), 
+                cols=1,
+                subplot_titles=[f'Phase {phase}' for phase in phases],
+                vertical_spacing=0.1
+            )
+            
+            # Add traces for each phase
+            colors = px.colors.qualitative.Plotly
+            for i, phase in enumerate(phases):
+                phase_data = phase_results[phase]
+                
+                # Add FFT trace
+                fig.add_trace(
+                    go.Scatter(
+                        x=phase_data['freq'],
+                        y=phase_data['magnitude'],
+                        mode='lines',
+                        name=f'Phase {phase}',
+                        line=dict(color=colors[i % len(colors)], width=1.5)
+                    ),
+                    row=i+1, col=1
+                )
+                
+                # Set x-axis range
+                fig.update_xaxes(range=[0, 500], row=i+1, col=1)
+            
+            # Update layout
+            fig.update_layout(
+                title=f"Multi-Phase FFT Analysis - GB200_2",
+                template='plotly_dark' if dark_mode else 'plotly_white',
+                height=300*len(phases),
+                showlegend=True,
+                hovermode='closest'
+            )
+            
+            # Update y-axis title
+            for i in range(len(phases)):
+                fig.update_yaxes(title_text='Magnitude', row=i+1, col=1)
+            
+            # Update x-axis (only show on bottom plot)
+            for i in range(len(phases)-1):
+                fig.update_xaxes(showticklabels=False, row=i+1, col=1)
+            fig.update_xaxes(title_text='Frequency (Hz)', row=len(phases), col=1)
+        
+        # Apply theme
+        fig = self._apply_theme(fig, dark_mode)
+        
+        return fig
+    
+    def _apply_theme(self, fig, dark_mode=False):
+        """Apply theme colors to plotly figure"""
+        if dark_mode:
+            fig.update_layout(
+                paper_bgcolor=DARK_MODE_STYLES['plot_paper_bg'],
+                plot_bgcolor=DARK_MODE_STYLES['plot_bg'],
+                font={'color': DARK_MODE_STYLES['text']},
+                title={'font': {'color': DARK_MODE_STYLES['text']}},
+                legend={'font': {'color': DARK_MODE_STYLES['text']}},
+                template='plotly_dark'
+            )
+            fig.update_xaxes(
+                gridcolor=DARK_MODE_STYLES['plot_grid'],
+                zerolinecolor=DARK_MODE_STYLES['plot_grid'],
+                title={'font': {'color': DARK_MODE_STYLES['text']}}
+            )
+            fig.update_yaxes(
+                gridcolor=DARK_MODE_STYLES['plot_grid'],
+                zerolinecolor=DARK_MODE_STYLES['plot_grid'],
+                title={'font': {'color': DARK_MODE_STYLES['text']}}
+            )
+        else:
+            fig.update_layout(
+                paper_bgcolor=LIGHT_MODE_STYLES['plot_paper_bg'],
+                plot_bgcolor=LIGHT_MODE_STYLES['plot_bg'],
+                font={'color': LIGHT_MODE_STYLES['text']},
+                title={'font': {'color': LIGHT_MODE_STYLES['text']}},
+                legend={'font': {'color': LIGHT_MODE_STYLES['text']}},
+                template='plotly_white'
+            )
+            fig.update_xaxes(
+                gridcolor=LIGHT_MODE_STYLES['plot_grid'],
+                zerolinecolor=LIGHT_MODE_STYLES['plot_grid'],
+                title={'font': {'color': LIGHT_MODE_STYLES['text']}}
+            )
+            fig.update_yaxes(
+                gridcolor=LIGHT_MODE_STYLES['plot_grid'],
+                zerolinecolor=LIGHT_MODE_STYLES['plot_grid'],
+                title={'font': {'color': LIGHT_MODE_STYLES['text']}}
+            )
+        
+        return fig

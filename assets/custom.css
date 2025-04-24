@@ -1,0 +1,212 @@
+/* Global styles */
+body {
+    font-family: 'Roboto', 'Segoe UI', 'Arial', sans-serif;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+/* Cards */
+.card {
+    border: none !important;
+    border-radius: 5px !important;
+    overflow: hidden !important;
+    margin-bottom: 20px !important;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Tables */
+table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+th, td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+th {
+    background-color: rgba(0, 0, 0, 0.05);
+    font-weight: bold;
+}
+
+/* Dark mode specific styles */
+body.dark-mode {
+    background-color: #1e1e1e !important;
+    color: #fff !important;
+}
+
+    body.dark-mode .card {
+        background-color: #2d2d2d !important;
+        color: #ffffff !important;
+        border-color: #3d3d3d !important;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3) !important;
+    }
+
+    body.dark-mode .card-header {
+        background-color: #3d3d3d !important;
+        border-bottom: 1px solid #444444 !important;
+        color: #ffffff !important;
+    }
+
+    body.dark-mode .card-body {
+        background-color: #2d2d2d !important;
+    }
+
+    body.dark-mode table th {
+        background-color: #3d3d3d !important;
+    }
+
+    body.dark-mode table td {
+        border-bottom: 1px solid #444 !important;
+    }
+
+    body.dark-mode .dash-spreadsheet-container .dash-spreadsheet-inner th,
+    body.dark-mode .dash-spreadsheet-container .dash-spreadsheet-inner td {
+        background-color: #2d2d2d !important;
+        color: #fff !important;
+        border-color: #444 !important;
+    }
+
+    /* Dropdown styling */
+    body.dark-mode .Select-control,
+    body.dark-mode .Select-menu-outer {
+        background-color: #3d3d3d !important;
+        color: #fff !important;
+        border-color: #555 !important;
+    }
+
+    body.dark-mode .Select-value-label,
+    body.dark-mode .Select-option {
+        color: #fff !important;
+    }
+
+    body.dark-mode .Select-menu-outer {
+        background-color: #3d3d3d !important;
+    }
+
+    body.dark-mode .Select-option:hover {
+        background-color: #4d4d4d !important;
+    }
+
+    /* Slider styling */
+    body.dark-mode .rc-slider-rail {
+        background-color: #444 !important;
+    }
+
+    body.dark-mode .rc-slider-track {
+        background-color: #0066cc !important;
+    }
+
+    body.dark-mode .rc-slider-handle {
+        border-color: #0066cc !important;
+        background-color: #0066cc !important;
+    }
+
+    body.dark-mode .rc-slider-mark-text {
+        color: #ddd !important;
+    }
+
+    /* Input styling */
+    body.dark-mode input[type="text"],
+    body.dark-mode input[type="number"] {
+        background-color: #3d3d3d !important;
+        color: #fff !important;
+        border-color: #555 !important;
+    }
+
+/* Tabs styling */
+.dash-tab {
+    border-radius: 4px 4px 0 0 !important;
+    margin-right: 2px !important;
+    overflow: hidden;
+}
+
+.dash-tab--selected {
+    font-weight: bold !important;
+}
+
+/* Dark mode tabs */
+body.dark-mode .dash-tab {
+    background-color: #555555 !important;
+    color: #ffffff !important;
+}
+
+body.dark-mode .dash-tab--selected {
+    background-color: #0066cc !important;
+    color: #ffffff !important;
+}
+
+/* Animation for status messages */
+.alert {
+    transition: opacity 0.5s ease-in-out;
+}
+
+/* Graph container styling */
+.plotly-notifier {
+    visibility: hidden;
+}
+
+.js-plotly-plot .plotly .cursor-pointer {
+    cursor: pointer;
+}
+
+/* Dark mode plot container */
+body.dark-mode .js-plotly-plot .plotly {
+    background-color: #2d2d2d !important;
+}
+
+    body.dark-mode .js-plotly-plot .plotly .main-svg {
+        background-color: #2d2d2d !important;
+    }
+
+    body.dark-mode .js-plotly-plot .plotly .background {
+        fill: #2d2d2d !important;
+    }
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .dash-spreadsheet {
+        overflow-x: auto;
+    }
+
+    .dash-tab {
+        padding: 8px !important;
+        font-size: 14px !important;
+    }
+}
+
+/* Data Preview section in dark mode */
+body.dark-mode .data-preview-container {
+    background-color: #2d2d2d !important;
+    color: #ffffff !important;
+    border-color: #3d3d3d !important;
+}
+
+body.dark-mode .data-summary-container {
+    background-color: #2d2d2d !important;
+    color: #ffffff !important;
+    border-color: #3d3d3d !important;
+}
+
+/* Dark mode fixes for Radio buttons and Checkboxes */
+body.dark-mode .custom-control-label::before {
+    background-color: #3d3d3d !important;
+    border-color: #555 !important;
+}
+
+body.dark-mode .custom-control-input:checked ~ .custom-control-label::before {
+    background-color: #0066cc !important;
+    border-color: #0066cc !important;
+}
+
+body.dark-mode .custom-checkbox .custom-control-input:checked ~ .custom-control-label::after {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3e%3cpath fill='%23fff' d='M6.564.75l-3.59 3.612-1.538-1.55L0 4.26l2.974 2.99L8 2.193z'/%3e%3c/svg%3e") !important;
+}
+
+/* Fix for upload box in dark mode */
+body.dark-mode .upload-box {
+    background-color: #3d3d3d !important;
+    color: #ffffff !important;
+    border-color: #555 !important;
+}

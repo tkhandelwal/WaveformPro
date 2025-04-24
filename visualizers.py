@@ -446,7 +446,7 @@ class PlotGenerator:
     
         return fig
     
-    def create_multi_phase_correlation_plot(self, correlation_data, dark_mode=False):
+    def create_multi_phase_correlation_plot(self, correlation_data, dark_mode=False, phase_map=None):
         """Create multi-phase correlation plot"""
         if correlation_data is None or 'type' not in correlation_data or correlation_data['type'] != 'correlation':
             return go.Figure()
@@ -1081,7 +1081,7 @@ class PlotGenerator:
         
         return fig
     
-    def create_multi_phase_harmonic_plot(self, multi_phase_data, plot_style='overlay', dark_mode=False):
+    def create_multi_phase_harmonic_plot(self, multi_phase_data, plot_style='overlay', dark_mode=False, phase_map=None):
         """Create multi-phase harmonics comparison plot"""
         if multi_phase_data is None or 'type' not in multi_phase_data or multi_phase_data['type'] != 'thd':
             return go.Figure()
@@ -1090,31 +1090,35 @@ class PlotGenerator:
         phase_results = multi_phase_data['phase_results']
         phases = list(phase_results.keys())
         
+        # Use provided phase_map or default to phase number
+        if phase_map is None:
+            phase_map = {phase: phase for phase in phases}
+    
         if plot_style == 'overlay':
             # Create figure
             fig = go.Figure()
-            
+        
             # Add traces for each phase
             colors = px.colors.qualitative.Plotly
             for i, phase in enumerate(phases):
                 phase_data = phase_results[phase]
-                
+            
                 # Extract harmonic data
                 harmonics = phase_data['harmonics']
                 x = [h['harmonic'] for h in harmonics[:10]]  # First 10 harmonics
                 y = [h['magnitude'] for h in harmonics[:10]]
-                
+            
                 # Add bar chart
                 fig.add_trace(go.Bar(
                     x=x,
                     y=y,
-                    name=f'Phase {phase}',
+                    name=f'Phase {phase_map.get(phase, phase)}',
                     marker_color=colors[i % len(colors)]
                 ))
-            
+        
             # Update layout
             fig.update_layout(
-                title=f"Multi-Phase Harmonic Comparison - NVL36",
+                title=f"Multi-Phase Harmonic Comparison",
                 xaxis_title='Harmonic',
                 yaxis_title='Magnitude',
                 barmode='group',
@@ -1127,55 +1131,174 @@ class PlotGenerator:
             fig = sp.make_subplots(
                 rows=len(phases), 
                 cols=1,
-                subplot_titles=[f'Phase {phase}' for phase in phases],
+                subplot_titles=[f'Phase {phase_map.get(phase, phase)}' for phase in phases],
                 vertical_spacing=0.1
             )
-            
+        
             # Add traces for each phase
             colors = px.colors.qualitative.Plotly
             for i, phase in enumerate(phases):
                 phase_data = phase_results[phase]
-                
+            
                 # Extract harmonic data
                 harmonics = phase_data['harmonics']
                 x = [h['harmonic'] for h in harmonics[:10]]  # First 10 harmonics
                 y = [h['magnitude'] for h in harmonics[:10]]
-                
+            
                 # Add bar chart
                 fig.add_trace(
                     go.Bar(
                         x=x,
                         y=y,
-                        name=f'Phase {phase}',
+                        name=f'Phase {phase_map.get(phase, phase)}',
                         marker_color=colors[i % len(colors)]
                     ),
                     row=i+1, col=1
                 )
-            
+        
             # Update layout
             fig.update_layout(
-                title=f"Multi-Phase Harmonic Analysis - GB200_2",
+                title=f"Multi-Phase Harmonic Analysis",
                 template='plotly_dark' if dark_mode else 'plotly_white',
                 height=300*len(phases),
                 showlegend=True,
                 hovermode='closest'
             )
-            
+        
             # Update y-axis title
             for i in range(len(phases)):
                 fig.update_yaxes(title_text='Magnitude', row=i+1, col=1)
-            
+        
             # Update x-axis (only show on bottom plot)
             for i in range(len(phases)-1):
                 fig.update_xaxes(showticklabels=False, row=i+1, col=1)
             fig.update_xaxes(title_text='Harmonic', row=len(phases), col=1)
-        
+    
         # Apply theme
         fig = self._apply_theme(fig, dark_mode)
-        
+    
         return fig
     
-    def create_multi_phase_fft_plot(self, multi_phase_data, plot_style='overlay', dark_mode=False):
+def create_3d_harmonic_visualization(self, data, dark_mode=False):
+    """Create 3D visualization of harmonics over time"""
+    # Calculate FFT for segments of the signal
+    sample_rate = 1 / data['sample_interval']
+    segment_size = int(sample_rate / 10)  # 0.1 second segments
+    
+    if len(data['current']) < segment_size * 3:
+        return go.Figure()  # Not enough data
+    
+    segments = []
+    times = []
+    for i in range(0, len(data['current']) - segment_size, segment_size):
+        segment = data['current'][i:i+segment_size]
+        times.append(data['time'][i])
+        
+        # Calculate FFT for this segment
+        fft = np.abs(np.fft.rfft(segment))
+        freq = np.fft.rfftfreq(len(segment), data['sample_interval'])
+        
+        # Store only frequency components up to 500 Hz
+        cutoff = np.searchsorted(freq, 500)
+        segments.append(fft[:cutoff])
+    
+    # Make all segments the same length
+    min_length = min(len(s) for s in segments)
+    segments = [s[:min_length] for s in segments]
+    freq = freq[:min_length]
+    
+    # Create 3D surface
+    fig = go.Figure(data=[go.Surface(
+        z=np.array(segments),
+        x=freq,
+        y=times,
+        colorscale='Viridis'
+    )])
+    
+    # Update layout
+    fig.update_layout(
+        title='3D Harmonic Spectrum Over Time',
+        scene=dict(
+            xaxis_title='Frequency (Hz)',
+            yaxis_title='Time (s)',
+            zaxis_title='Magnitude',
+            xaxis=dict(range=[0, 500]),
+        ),
+        template='plotly_dark' if dark_mode else 'plotly_white',
+        margin=dict(l=50, r=50, t=80, b=50)
+    )
+    
+    return fig
+
+    def generate_pdf_report(self, analysis_results, report_title, included_sections):
+        """Generate a PDF report with analysis results"""
+        from reportlab.lib.pagesizes import letter
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table
+        import io
+        from PIL import Image as PILImage
+    
+        # Create PDF buffer
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter)
+        elements = []
+    
+        # Add styles
+        styles = getSampleStyleSheet()
+        title_style = styles['Title']
+        heading_style = styles['Heading1']
+        normal_style = styles['Normal']
+    
+        # Add title
+        elements.append(Paragraph(report_title, title_style))
+        elements.append(Spacer(1, 12))
+    
+        # Add date and time
+        from datetime import datetime
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        elements.append(Paragraph(f"Generated: {now}", normal_style))
+        elements.append(Spacer(1, 24))
+    
+        # Add included sections
+        if 'time' in included_sections and 'time_plot' in analysis_results:
+            elements.append(Paragraph("Time Domain Analysis", heading_style))
+            elements.append(Spacer(1, 12))
+        
+            # Convert plot to image
+            plot_img = io.BytesIO()
+            analysis_results['time_plot'].write_image(plot_img)
+            plot_img.seek(0)
+            img = PILImage.open(plot_img)
+            img = img.resize((500, 300))
+            img_path = io.BytesIO()
+            img.save(img_path, format='PNG')
+            img_path.seek(0)
+        
+            elements.append(Image(img_path))
+            elements.append(Spacer(1, 12))
+        
+            # Add metrics
+            if 'metrics' in analysis_results:
+                metrics = analysis_results['metrics']
+                data = [['Metric', 'Value']]
+                for key, value in metrics.items():
+                    if key in ['rms', 'peak_to_peak', 'crest_factor', 'form_factor']:
+                        data.append([key, f"{value:.4f}"])
+            
+                elements.append(Table(data))
+        
+            elements.append(Spacer(1, 24))
+    
+        # Add more sections similarly
+    
+        # Build PDF
+        doc.build(elements)
+    
+        buffer.seek(0)
+        return buffer
+    
+    def create_multi_phase_fft_plot(self, multi_phase_data, plot_style='overlay', dark_mode=False, phase_map=None):
         """Create multi-phase FFT comparison plot"""
         if multi_phase_data is None or 'type' not in multi_phase_data or multi_phase_data['type'] != 'fft':
             return go.Figure()

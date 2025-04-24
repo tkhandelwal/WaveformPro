@@ -1,8 +1,28 @@
-# Waveform Pro - Power Data Analysis Tool
+# WaveformPro - Advanced Power Data Analysis Tool
+
+WaveformPro is a comprehensive data analysis and visualization platform designed for power quality analysis, current waveform examination, and harmonic studies.
+
+## Features
+
+- **Multi-format Data Import**: Supports CSV, Excel, SQLite, JSON, HDF5, COMTRADE, and binary formats
+- **Interactive Data Visualization**: Explore data with responsive, interactive plots
+- **Comprehensive Analysis Tools**:
+  - Time domain analysis
+  - Frequency domain (FFT)
+  - Harmonic analysis with THD calculation
+  - Interharmonics analysis
+  - Power quality assessment
+  - Transient detection
+  - Wavelet decomposition
+  - Short-time Fourier Transform (STFT)
+  - Cepstrum analysis
+  - Waveform distortion metrics
+  - Multi-phase comparison
+
+- **Advanced Visualization**: Multiple visualization options with customizable parameters
+- **Report Generation**: Create comprehensive reports with selected analyses
 
 ## Supported Data Formats
-
-This tool supports the following data formats:
 
 ### CSV Files
 - Standard comma-separated values format
@@ -27,51 +47,63 @@ This tool supports the following data formats:
 - Used by power utilities and protection systems
 - Supports both ASCII and binary formats
 
-## Usage
+### SQLite Database
+- Tables containing time and current values
+- Support for different measurement setups
 
-### Importing Data
+## Usage Guide
 
+### Data Selection Tab
 
-Future Enhancements
-1. Fix Dark Mode Styling
-We need to ensure proper contrast for all text elements in dark mode. This requires updating the CSS to set appropriate text colors for dark backgrounds.
-2. Add File Selection Interface
-Let's implement a file selection component that allows users to:
+1. **Database Data**:
+   - Select a system and phase from the dropdown menus
+   - Adjust the sample limit slider to control the amount of data loaded
+   - Click "Load Data" to load the selected data
 
-Browse and select individual files
-Display the selected file details
-Import the selected file
+2. **Upload Data**:
+   - Select the file format from the radio buttons
+   - Drag and drop a file or click to browse and select
+   - The app will automatically parse and display the data
 
-3. Additional Functionality Improvements
-Data Management Features
+### Analysis Tab
 
-Data Browser: Add a dedicated panel to browse all imported data files
-Data Filtering: Allow filtering data by time range or specific conditions
-Batch Processing: Enable processing multiple files with the same settings
-Data Comparison: Add ability to overlay/compare data from different files
-Data Snapshots: Create and save snapshots of specific analysis states
-Data Export Options: Expand export formats to include PNG/SVG plots and PDF reports
+1. Select an analysis type from the options on the left
+2. Adjust the analysis parameters as needed
+3. Click "Run Analysis" to perform the selected analysis
+4. View the results displayed on the right
 
-Analysis Enhancements
+### Visualization Tab
 
-Custom Filters: Allow users to design custom filters with visual feedback
-Anomaly Detection: Add automatic detection of abnormal patterns
-Machine Learning Integration: Add predictive analytics for power quality
-Statistical Analysis: Add more advanced statistical tools for signal analysis
-Correlation Analysis: Add tools to find correlations between different phases
+1. Select a visualization type from the options on the left
+2. Adjust visualization parameters as needed
+3. Click "Update Visualization" to generate the visual
+4. Use the export options to save as PNG, SVG, or CSV
 
-Visualization Improvements
+### Reports Tab
 
-Interactive Plots: Make graphs fully interactive with zoom, pan, and selection
-3D Visualization: Add 3D plots for multi-variable relationships
-Real-time Monitoring: Add capability to monitor data sources in real-time
-Customizable Dashboards: Allow users to create custom dashboard layouts
-Annotation Tools: Add ability to annotate and mark important features on graphs
+1. Enter a title for your report
+2. Select which analyses to include in the report
+3. Click "Generate Report" to create a comprehensive report
+4. The report preview will display on the right
 
-User Experience
+## Installation
 
-User Preferences: Add a preferences panel to customize application behavior
-Color Schemes: Allow selection of different color schemes beyond dark/light
-Keyboard Shortcuts: Implement keyboard shortcuts for common operations
-Tutorial System: Add an interactive tutorial for new users
-Search Functionality: Add ability to search within the dataset
+1. Clone the repository:
+
+git clone https://github.com/yourusername/waveform-pro.git
+cd waveform-pro
+
+2. Install dependencies:
+pip install -r requirements.txt
+
+3. Run the application:
+python run.py
+
+## Future Enhancements
+
+- Machine Learning integration for anomaly detection
+- Real-time monitoring capabilities
+- Custom filter design tools
+- Additional data export formats
+- 3D visualization for multi-variable analysis
+

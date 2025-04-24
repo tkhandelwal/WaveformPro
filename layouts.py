@@ -330,6 +330,8 @@ def create_visualization_content(dark_mode=False):
                             {'label': 'Wavelet Decomposition', 'value': 'wavelet'},
                             {'label': 'Transient Analysis', 'value': 'transients'},
                             {'label': 'Multi-Phase', 'value': 'multi_phase'}
+                            {'label': '3D Harmonic Visualization', 'value': '3d_harmonics'}  # Add this line
+
                         ],
                         value='time',
                         labelStyle={'display': 'block', 'marginBottom': '10px'}
@@ -429,7 +431,7 @@ def create_reports_content(dark_mode=False):
                     
                     # Report Title
                     html.Label("Report Title:", style={'marginBottom': '5px'}),
-                    html.Input(
+                    dbc.Input(
                         id="report-title", 
                         type="text", 
                         placeholder="Enter report title",

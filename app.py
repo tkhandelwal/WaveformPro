@@ -253,6 +253,115 @@ def load_data(n_clicks, file_contents, system, phase, sample_limit, filename, fi
     }
     return None, None, None, "", empty_status_style
 
+# Callback to update visualization based on selected type
+@app.callback(
+    Output('visualization-area', 'children'),
+    Output('visualization-store', 'data'),
+    Input('update-viz-button', 'n_clicks'),
+    [State('viz-type', 'value'),
+     State('current-data', 'data'),
+     State('harmonics-data', 'data'),
+     State('wavelet-data', 'data'),
+     State('power-quality-data', 'data'),
+     State('transient-data', 'data'),
+     State('multi-phase-data', 'data'),
+     State('theme-store', 'data')],
+    prevent_initial_call=True
+)
+def update_visualization(n_clicks, viz_type, data_json, harmonics_data, wavelet_data, 
+                         power_quality_data, transient_data, multi_phase_data, theme_data):
+    if n_clicks is None or data_json is None:
+        raise dash.exceptions.PreventUpdate
+        
+    dark_mode = theme_data.get('dark_mode', False) if theme_data else False
+    data = convert_from_json(data_json)
+    
+    if viz_type == 'time':
+        fig = plot_generator.create_time_domain_plot(data, dark_mode=dark_mode)
+        return dcc.Graph(figure=fig, config={'displayModeBar': True}), {'type': 'time'}
+        
+    elif viz_type == 'fft':
+        fft_data = signal_processor.compute_fft(data)
+        fig = plot_generator.create_frequency_domain_plot(fft_data, dark_mode=dark_mode)
+        return dcc.Graph(figure=fig, config={'displayModeBar': True}), {'type': 'fft'}
+        
+    elif viz_type == 'harmonics':
+        if harmonics_data:
+            h_data = convert_from_json(harmonics_data)
+            fig = plot_generator.create_harmonics_plot(h_data, dark_mode=dark_mode)
+            return dcc.Graph(figure=fig, config={'displayModeBar': True}), {'type': 'harmonics'}
+        else:
+            h_data = signal_processor.compute_harmonics(data)
+            fig = plot_generator.create_harmonics_plot(h_data, dark_mode=dark_mode)
+            return dcc.Graph(figure=fig, config={'displayModeBar': True}), {'type': 'harmonics'}
+            
+    elif viz_type == 'wavelet':
+        if wavelet_data:
+            w_data = convert_from_json(wavelet_data)
+            fig = plot_generator.create_wavelet_plot(w_data, dark_mode=dark_mode)
+            return dcc.Graph(figure=fig, config={'displayModeBar': True}), {'type': 'wavelet'}
+        else:
+            w_data = signal_processor.compute_wavelet(data)
+            fig = plot_generator.create_wavelet_plot(w_data, dark_mode=dark_mode)
+            return dcc.Graph(figure=fig, config={'displayModeBar': True}), {'type': 'wavelet'}
+            
+    elif viz_type == 'stft':
+        stft_data = signal_processor.compute_stft(data)
+        fig = plot_generator.create_stft_plot(stft_data, dark_mode=dark_mode)
+        return dcc.Graph(figure=fig, config={'displayModeBar': True}), {'type': 'stft'}
+        
+    elif viz_type == 'spectrogram':
+        spec_data = signal_processor.compute_spectrogram(data)
+        fig = plot_generator.create_spectrogram_plot(spec_data, dark_mode=dark_mode)
+        return dcc.Graph(figure=fig, config={'displayModeBar': True}), {'type': 'spectrogram'}
+        
+    elif viz_type == 'transients':
+        if transient_data:
+            t_data = convert_from_json(transient_data)
+            fig = plot_generator.create_transient_plot(t_data, dark_mode=dark_mode)
+            return dcc.Graph(figure=fig, config={'displayModeBar': True}), {'type': 'transients'}
+        else:
+            t_data = signal_processor.analyze_transients(data)
+            fig = plot_generator.create_transient_plot(t_data, dark_mode=dark_mode)
+            return dcc.Graph(figure=fig, config={'displayModeBar': True}), {'type': 'transients'}
+    
+    elif viz_type == 'multi_phase':
+        if multi_phase_data:
+            mp_data = convert_from_json(multi_phase_data)
+            fig = plot_generator.create_multi_phase_harmonic_plot(mp_data, dark_mode=dark_mode)
+            return dcc.Graph(figure=fig, config={'displayModeBar': True}), {'type': 'multi_phase'}
+        else:
+            # For visualization only, create a simple demo
+            return html.Div("Multi-phase visualization requires running the analysis first"), None
+            
+    return html.Div("Select a visualization type and click Update"), None
+
+# Callback for exporting visualizations
+@app.callback(
+    Output('download-data', 'data'),
+    Input('export-button', 'n_clicks'),
+    [State('export-format', 'value'),
+     State('visualization-store', 'data'),
+     State('current-data', 'data')],
+    prevent_initial_call=True
+)
+def export_visualization(n_clicks, export_format, viz_data, current_data):
+    if n_clicks is None or viz_data is None:
+        raise dash.exceptions.PreventUpdate
+        
+    if export_format == 'csv' and current_data:
+        data = convert_from_json(current_data)
+        df = pd.DataFrame({
+            'time': data['time'],
+            'current': data['current']
+        })
+        return dcc.send_data_frame(df.to_csv, "waveform_data.csv", index=False)
+        
+    # For image exports, we need to use clientside callbacks (not shown here)
+    # This would typically be implemented with a clientside JavaScript callback
+    
+    return dash.no_update
+
 # Callback to update analysis parameters based on analysis type
 @app.callback(
     Output('analysis-parameters', 'children'),

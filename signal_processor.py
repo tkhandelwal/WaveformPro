@@ -1,4 +1,4 @@
-import numpy as np
+﻿import numpy as np
 from scipy import signal
 import pywt  # For wavelet transform
 import logging
@@ -754,58 +754,502 @@ class SignalProcessor:
             traceback.print_exc()
             return None
             
+    
+    def check_standards_compliance(self, analysis_results):
+        """Check compliance with industry power quality standards"""
+        compliance = {}
+    
+        # IEEE 519 Standard for harmonic distortion
+        if 'thd' in analysis_results:
+            thd = analysis_results['thd']
+            compliance['IEEE_519'] = {
+                'compliant': thd <= 5.0,
+                'value': thd,
+                'limit': 5.0,
+                'description': 'THD limit for sensitive equipment'
+            }
+    
+        # IEC 61000-3-2 for harmonic current emissions
+        if 'harmonics' in analysis_results:
+            harmonics = analysis_results['harmonics']
+            odd_harmonics_compliant = True
+            even_harmonics_compliant = True
+        
+            # Check specific harmonic limits (simplified)
+            for h in harmonics:
+                h_num = h['harmonic']
+                if h_num > 1:  # Skip fundamental
+                    if h_num % 2 == 1:  # Odd harmonics
+                        if h_num <= 11 and h['magnitude'] > 0.15:
+                            odd_harmonics_compliant = False
+                    else:  # Even harmonics
+                        if h['magnitude'] > 0.10:
+                            even_harmonics_compliant = False
+        
+            compliance['IEC_61000_3_2'] = {
+                'compliant': odd_harmonics_compliant and even_harmonics_compliant,
+                'odd_harmonics_compliant': odd_harmonics_compliant,
+                'even_harmonics_compliant': even_harmonics_compliant,
+                'description': 'Limits for harmonic current emissions'
+            }
+    
+        # Add more standards checks
+    
+        return compliance
+
+    def predict_equipment_impact(self, analysis_results):
+        """Predict impact on equipment based on power quality analysis"""
+        impacts = []
+    
+        # Check THD impact on equipment
+        if 'thd' in analysis_results:
+            thd = analysis_results['thd']
+            if thd > 10:
+                impacts.append({
+                    'equipment': 'Transformers',
+                    'issue': 'Increased heating due to high THD',
+                    'risk_level': 'High' if thd > 20 else 'Medium',
+                    'recommendation': 'Consider harmonic filtering or derating transformers'
+                })
+            
+            if thd > 5:
+                impacts.append({
+                    'equipment': 'Motors',
+                    'issue': 'Reduced efficiency and increased heating',
+                    'risk_level': 'Medium' if thd > 15 else 'Low',
+                    'recommendation': 'Monitor motor temperature and vibration'
+                })
+    
+        # Check impact of voltage transients
+        if 'transients' in analysis_results and analysis_results['detected_count'] > 0:
+            transient_count = analysis_results['detected_count']
+            impacts.append({
+                'equipment': 'Electronic Equipment',
+                'issue': 'Potential damage from voltage transients',
+                'risk_level': 'High' if transient_count > 10 else 'Medium',
+                'recommendation': 'Install surge protectors or voltage regulators'
+            })
+    
+        # Add more rules for other power quality issues
+    
+        return impacts
+
+    def calculate_health_score(self, data):
+        """Calculate a power quality health score from 0-100"""
+        # Get various metrics
+        metrics = self.calculate_metrics(data)
+        harmonics = self.compute_harmonics(data)
+    
+        # Define weight for each metric
+        weights = {
+            'thd': 30,  # THD has high importance
+            'crest_factor': 20,
+            'form_factor': 15,
+            'flicker': 20,
+            'transients': 15
+        }
+    
+        # Score each component (higher is better)
+        scores = {}
+    
+        # THD score (lower THD is better)
+        thd = harmonics['thd']
+        scores['thd'] = max(0, 100 - thd * 2)  # Penalize THD over 50%
+    
+        # Crest factor score (closer to 1.414 for sine wave is better)
+        cf = metrics['crest_factor']
+        cf_ideal = 1.414  # Ideal for sine wave
+        scores['crest_factor'] = max(0, 100 - 30 * abs(cf - cf_ideal))
+    
+        # Form factor score (closer to 1.11 for sine wave is better)
+        ff = metrics['form_factor']
+        ff_ideal = 1.11  # Ideal for sine wave
+        scores['form_factor'] = max(0, 100 - 30 * abs(ff - ff_ideal))
+    
+        # Flicker score (detect voltage fluctuations)
+        flicker_data = self.analyze_power_quality(data, 'flicker')
+        if flicker_data:
+            pst = flicker_data['Pst']
+            scores['flicker'] = max(0, 100 - pst * 80)  # Pst > 1.25 gives 0 score
+        else:
+            scores['flicker'] = 100  # Default if can't measure
+    
+        # Transient score (fewer transients is better)
+        transient_data = self.analyze_transients(data)
+        if transient_data:
+            transient_count = transient_data['detected_count']
+            scores['transients'] = max(0, 100 - transient_count * 5)  # Each transient costs 5 points
+        else:
+            scores['transients'] = 100  # Default if can't measure
+    
+        # Calculate weighted average
+        total_score = 0
+        total_weight = 0
+        for metric, score in scores.items():
+            total_score += score * weights.get(metric, 0)
+            total_weight += weights.get(metric, 0)
+    
+        if total_weight > 0:
+            final_score = round(total_score / total_weight)
+        else:
+            final_score = 0
+    
+        return {
+            'overall_score': final_score,
+            'component_scores': scores,
+            'interpretation': self._interpret_health_score(final_score)
+        }
+
+    def detect_anomalies(self, data, sensitivity=0.8):
+        """Detect anomalies in power quality data using machine learning"""
+        from sklearn.ensemble import IsolationForest
+    
+        # Extract features (e.g., RMS, THD, crest factor)
+        features = []
+        for i in range(0, len(data['current']), 100):  # Sample every 100 points
+            segment = data['current'][i:i+100]
+            if len(segment) < 20:  # Skip small segments
+                continue
+            
+            # Calculate features for this segment
+            rms = np.sqrt(np.mean(np.square(segment)))
+            peak = np.max(np.abs(segment))
+            crest = peak / rms if rms > 0 else 0
+        
+            # More features can be added
+            features.append([rms, peak, crest])
+    
+        # Apply Isolation Forest for anomaly detection
+        if len(features) > 10:  # Need enough samples
+            clf = IsolationForest(contamination=sensitivity)
+            outliers = clf.fit_predict(features)
+        
+            # Find segments with anomalies
+            anomalies = []
+            j = 0
+            for i in range(0, len(data['current']), 100):
+                if j >= len(outliers):
+                    break
+                
+                if outliers[j] == -1:  # -1 indicates anomaly
+                    anomalies.append({
+                        'start': i,
+                        'end': min(i+100, len(data['current'])),
+                        'time_start': data['time'][i],
+                        'time_end': data['time'][min(i+100, len(data['current'])-1)]
+                    })
+                j += 1
+        
+            return anomalies
+        return []
+
+    def _interpret_health_score(self, score):
+        """Interpret the health score"""
+        if score >= 90:
+            return "Excellent power quality with minimal distortion"
+        elif score >= 80:
+            return "Good power quality with minor distortion"
+        elif score >= 70:
+            return "Acceptable power quality with moderate distortion"
+        elif score >= 60:
+            return "Fair power quality with noticeable distortion"
+        elif score >= 50:
+            return "Poor power quality with significant distortion"
+        else:
+            return "Critical power quality issues requiring immediate attention"
+
+    def calculate_power_quality_index(self, data, harmonics_data=None, transient_data=None):
+        """Calculate a comprehensive Power Quality Index from multiple metrics"""
+        try:
+            if data is None:
+                return None
+            
+            metrics = {}
+        
+            # Basic time domain metrics
+            time_metrics = self.calculate_metrics(data)
+        
+            # Harmonics metrics
+            if harmonics_data is None and data is not None:
+                harmonics_data = self.compute_harmonics(data)
+            
+            # Transient metrics
+            if transient_data is None and data is not None:
+                transient_data = self.analyze_transients(data)
+            
+            # Calculate individual indices (0-100 scale where 100 is perfect)
+        
+            # 1. Crest Factor Index (ideal is sqrt(2) ≈ 1.414 for sine wave)
+            cf = time_metrics.get('crest_factor', 0)
+            cf_ideal = 1.414
+            cf_index = max(0, 100 - 30 * abs(cf - cf_ideal))
+        
+            # 2. Form Factor Index (ideal is 1.11 for sine wave)
+            ff = time_metrics.get('form_factor', 0)
+            ff_ideal = 1.11
+            ff_index = max(0, 100 - 40 * abs(ff - ff_ideal))
+        
+            # 3. THD Index (ideal is 0%)
+            thd = harmonics_data.get('thd', 0) if harmonics_data else 0
+            thd_index = max(0, 100 - thd)
+        
+            # 4. Transient Index (ideal is 0 transients)
+            transient_count = transient_data.get('detected_count', 0) if transient_data else 0
+            transient_index = max(0, 100 - 10 * transient_count)
+        
+            # Combine indices with weights
+            pqi = (
+                0.25 * cf_index + 
+                0.20 * ff_index + 
+                0.40 * thd_index + 
+                0.15 * transient_index
+            )
+        
+            # Classify quality
+            quality_level = "Excellent"
+            if pqi < 40:
+                quality_level = "Poor"
+            elif pqi < 60:
+                quality_level = "Fair"
+            elif pqi < 80:
+                quality_level = "Good"
+            elif pqi < 90:
+                quality_level = "Very Good"
+            
+            return {
+                'pqi': pqi,
+                'quality_level': quality_level,
+                'components': {
+                    'crest_factor_index': cf_index,
+                    'form_factor_index': ff_index,
+                    'thd_index': thd_index,
+                    'transient_index': transient_index
+                },
+                'raw_metrics': {
+                    'crest_factor': cf,
+                    'form_factor': ff,
+                    'thd': thd,
+                    'transient_count': transient_count
+                }
+            }
+        except Exception as e:
+            logger.error(f"Error calculating power quality index: {e}")
+            return None
+
+    def compute_symmetrical_components(self, phase_data):
+        """Compute symmetrical components for three-phase system"""
+        try:
+            # Check if we have three phases
+            if len(phase_data) != 3:
+                logger.warning("Symmetrical components require exactly three phases")
+                return None
+            
+            phases = list(phase_data.keys())
+        
+            # Get FFT for each phase
+            fft_results = {}
+            for phase, data in phase_data.items():
+                fft_results[phase] = self.compute_fft(data)
+            
+            # Find fundamental frequency components
+            fundamental_freq = 60  # Default
+            fundamental_indices = {}
+            fundamental_vectors = {}
+        
+            for phase, fft_data in fft_results.items():
+                freqs = fft_data['freq']
+                magnitudes = fft_data['magnitude']
+                phases_rad = fft_data['phase']
+            
+                # Find index closest to 60Hz
+                idx = np.argmin(np.abs(freqs - fundamental_freq))
+                fundamental_indices[phase] = idx
+            
+                # Get complex vector (magnitude and phase)
+                magnitude = magnitudes[idx]
+                phase_angle = phases_rad[idx]
+            
+                # Create complex representation
+                fundamental_vectors[phase] = magnitude * np.exp(1j * phase_angle)
+            
+            # Create Fortescue transformation
+            a = np.exp(1j * 2 * np.pi / 3)  # 120° operator
+        
+            # Get the complex vectors in order
+            Va = fundamental_vectors[phases[0]]
+            Vb = fundamental_vectors[phases[1]]
+            Vc = fundamental_vectors[phases[2]]
+        
+            # Compute symmetrical components
+            V0 = (Va + Vb + Vc) / 3  # Zero sequence
+            V1 = (Va + a * Vb + a**2 * Vc) / 3  # Positive sequence
+            V2 = (Va + a**2 * Vb + a * Vc) / 3  # Negative sequence
+        
+            # Calculate magnitudes and angles
+            V0_mag = np.abs(V0)
+            V1_mag = np.abs(V1)
+            V2_mag = np.abs(V2)
+        
+            V0_ang = np.angle(V0, deg=True)
+            V1_ang = np.angle(V1, deg=True)
+            V2_ang = np.angle(V2, deg=True)
+        
+            # Calculate unbalance factors
+            if V1_mag > 0:
+                negative_sequence_unbalance = (V2_mag / V1_mag) * 100
+                zero_sequence_unbalance = (V0_mag / V1_mag) * 100
+            else:
+                negative_sequence_unbalance = 0
+                zero_sequence_unbalance = 0
+            
+            return {
+                'zero_sequence': {
+                    'magnitude': V0_mag,
+                    'angle': V0_ang,
+                    'complex': V0
+                },
+                'positive_sequence': {
+                    'magnitude': V1_mag,
+                    'angle': V1_ang,
+                    'complex': V1
+                },
+                'negative_sequence': {
+                    'magnitude': V2_mag,
+                    'angle': V2_ang,
+                    'complex': V2
+                },
+                'unbalance_factors': {
+                    'negative_sequence': negative_sequence_unbalance,
+                    'zero_sequence': zero_sequence_unbalance
+                }
+            }
+        except Exception as e:
+            logger.error(f"Error computing symmetrical components: {e}")
+            return None
+
+
+    def compute_coherence(self, data, segment_length=1024, overlap=512):
+        """Compute coherence between different frequency components"""
+        try:
+            if data is None or 'current' not in data:
+                return None
+            
+            # Create analytic signal using Hilbert transform
+            analytic_signal = signal.hilbert(data['current'])
+        
+            # Extract instantaneous amplitude and phase
+            amplitude = np.abs(analytic_signal)
+            phase = np.unwrap(np.angle(analytic_signal))
+        
+            # Get sample rate
+            fs = 1 / data['sample_interval']
+        
+            # Compute coherence between original signal and amplitude envelope
+            f, Cxy = signal.coherence(data['current'], amplitude, fs=fs, nperseg=segment_length, noverlap=overlap)
+        
+            # Compute coherence between original signal and phase
+            f, Cxy_phase = signal.coherence(data['current'], phase, fs=fs, nperseg=segment_length, noverlap=overlap)
+        
+            # Create frequency bands for analysis
+            bands = [
+                {'name': 'Fundamental', 'min': 50, 'max': 70},
+                {'name': 'Low Harmonics', 'min': 100, 'max': 300},
+                {'name': 'Mid Harmonics', 'min': 300, 'max': 600},
+                {'name': 'High Harmonics', 'min': 600, 'max': 1200}
+            ]
+        
+            # Analyze coherence in each band
+            band_analysis = []
+            for band in bands:
+                # Find indices in this frequency range
+                indices = np.where((f >= band['min']) & (f <= band['max']))[0]
+            
+                if len(indices) > 0:
+                    mean_coh = np.mean(Cxy[indices])
+                    max_coh = np.max(Cxy[indices])
+                    max_coh_freq = f[indices[np.argmax(Cxy[indices])]]
+                
+                    mean_coh_phase = np.mean(Cxy_phase[indices])
+                    max_coh_phase = np.max(Cxy_phase[indices])
+                    max_coh_phase_freq = f[indices[np.argmax(Cxy_phase[indices])]]
+                
+                    band_analysis.append({
+                        'band': band['name'],
+                        'frequency_range': [band['min'], band['max']],
+                        'amplitude_coherence': {
+                            'mean': mean_coh,
+                            'max': max_coh,
+                            'max_freq': max_coh_freq
+                        },
+                        'phase_coherence': {
+                            'mean': mean_coh_phase,
+                            'max': max_coh_phase,
+                            'max_freq': max_coh_phase_freq
+                        }
+                    })
+        
+            return {
+                'frequency': f,
+                'amplitude_coherence': Cxy,
+                'phase_coherence': Cxy_phase,
+                'band_analysis': band_analysis
+            }
+        except Exception as e:
+            logger.error(f"Error computing coherence: {e}")
+            return None
+
     def compute_waveform_distortion(self, data, fundamental_freq=60):
         """Analyze waveform distortion parameters"""
         if data is None or 'current' not in data or len(data['current']) == 0:
             return None
-        
+    
         try:
             current = data['current']
-        
+    
             # Compute harmonics first
             harmonics_data = self.compute_harmonics(data, fundamental_freq=fundamental_freq)
             if harmonics_data is None:
                 return None
-        
+    
             # Calculate key distortion parameters
-        
+    
             # Total Harmonic Distortion (already in harmonics_data)
             thd = harmonics_data['thd']
-        
+    
             # Calculate form factor
             rms_value = np.sqrt(np.mean(np.square(current)))
             mean_abs = np.mean(np.abs(current))
             form_factor = rms_value / mean_abs if mean_abs > 0 else 0
-        
+    
             # Calculate crest factor
             peak_value = np.max(np.abs(current))
             crest_factor = peak_value / rms_value if rms_value > 0 else 0
-        
+    
             # Calculate K-factor (weighs harmonics by their square of harmonic order)
             harmonics = harmonics_data['harmonics']
             sum_h_squared = 0
             sum_h = 0
-        
+    
             for h in harmonics:
                 h_order = h['harmonic']
                 h_mag_squared = h['magnitude']**2
                 sum_h_squared += h_order**2 * h_mag_squared
                 sum_h += h_mag_squared
-        
+    
             k_factor = sum_h_squared / sum_h if sum_h > 0 else 0
-        
+    
             # Calculate transformer derating factor (TDF) - simplified
             tdf = 1 / np.sqrt(1 + (thd/100)**2)
-        
+    
             # Group harmonics by type
             even_harmonics = [h for h in harmonics if h['harmonic'] % 2 == 0]
             odd_harmonics = [h for h in harmonics if h['harmonic'] % 2 == 1 and h['harmonic'] > 1]
             triplen_harmonics = [h for h in harmonics if h['harmonic'] % 3 == 0]
-        
+    
             even_thd = np.sqrt(sum(h['magnitude']**2 for h in even_harmonics)) / harmonics[0]['magnitude'] * 100
             odd_thd = np.sqrt(sum(h['magnitude']**2 for h in odd_harmonics)) / harmonics[0]['magnitude'] * 100
             triplen_thd = np.sqrt(sum(h['magnitude']**2 for h in triplen_harmonics)) / harmonics[0]['magnitude'] * 100
-        
+    
             return {
                 'thd': thd,
                 'form_factor': form_factor,

@@ -849,6 +849,7 @@ def run_analysis(n_clicks, data_json, analysis_type='time',
                 harmonics_count=15, fundamental_freq=60, harmonics_view='spectrum', harmonics_selection=None,
                 wavelet_type='db4', wavelet_level=2,
                 power_quality_type='flicker', power_quality_sensitivity=2,
+                interharmonics_fund_freq=60,  # Added this missing parameter
                 transient_sensitivity=2, transient_window=20,
                 stft_window_size=256, stft_overlap=50, stft_window_type='hann', stft_colormap='viridis',
                 multi_phase_selection=None, multi_phase_type='thd', multi_phase_plot_style='overlay',

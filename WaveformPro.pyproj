@@ -27,7 +27,6 @@
     <Compile Include="data_access.py" />
     <Compile Include="file_handlers.py" />
     <Compile Include="layouts.py" />
-    <Compile Include="module1.py" />
     <Compile Include="signal_processor.py" />
     <Compile Include="utils.py" />
     <Compile Include="visualizers.py" />

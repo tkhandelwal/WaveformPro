@@ -410,44 +410,73 @@ class SignalProcessor:
             traceback.print_exc()
             return None
     
-def analyze_transients(self, data, sensitivity=2, window_size=20):
-    """Dedicated transient analysis"""
-    if data is None or 'current' not in data or len(data['current']) == 0:
-        return None
+    def analyze_transients(self, data, sensitivity=2, window_size=20):
+        """Analyze transients in the signal"""
+        if data is None or 'current' not in data or len(data['current']) == 0:
+            return None
         
-    try:
-        current = data['current']
-        time = data['time']
-        sample_rate = 1 / data['sample_interval']
+        try:
+            current = data['current']
+            time = data['time']
+            sample_rate = 1 / data['sample_interval']
         
-        # Calculate RMS value for baseline
-        rms_value = np.sqrt(np.mean(np.square(current)))
+            # Calculate RMS value for baseline
+            rms_value = np.sqrt(np.mean(np.square(current)))
         
-        # Dynamic threshold based on sensitivity
-        threshold = sensitivity * rms_value
+            # Dynamic threshold based on sensitivity
+            threshold = sensitivity * rms_value
         
-        # Detect transients using threshold detection
-        # Find peaks exceeding threshold
-        peaks, _ = signal.find_peaks(np.abs(current), height=threshold)
+            # Detect transients using threshold detection
+            # Find peaks exceeding threshold
+            peaks, _ = signal.find_peaks(np.abs(current), height=threshold)
         
-        # Group peaks into events (peaks within window_size samples of each other)
-        events = []
-        if len(peaks) > 0:
-            event_start_idx = peaks[0]
-            event_peak_idx = peaks[0]
-            event_peak_value = current[peaks[0]]
+            # Group peaks into events (peaks within window_size samples of each other)
+            events = []
+            if len(peaks) > 0:
+                event_start_idx = peaks[0]
+                event_peak_idx = peaks[0]
+                event_peak_value = current[peaks[0]]
             
-            for i in range(1, len(peaks)):
-                # If next peak is far enough, consider it a new event
-                if (peaks[i] - peaks[i-1]) > window_size:
-                    # Record the previous event
-                    event_end_idx = peaks[i-1]
-                    duration_ms = (time[event_end_idx] - time[event_start_idx]) * 1000  # convert to ms
+                for i in range(1, len(peaks)):
+                    # If next peak is far enough, consider it a new event
+                    if (peaks[i] - peaks[i-1]) > window_size:
+                        # Record the previous event
+                        event_end_idx = peaks[i-1]
+                        duration_ms = (time[event_end_idx] - time[event_start_idx]) * 1000  # convert to ms
                     
+                        # Calculate transient energy
+                        event_indices = range(event_start_idx, event_end_idx + 1)
+                        energy = np.sum(np.square(current[event_indices]))
+                    
+                        events.append({
+                            'start_time': time[event_start_idx],
+                            'end_time': time[event_end_idx],
+                            'duration': duration_ms,
+                            'peak_value': event_peak_value,
+                            'peak_time': time[event_peak_idx],
+                            'energy': energy,
+                            'class': self._classify_transient(duration_ms, event_peak_value, rms_value)
+                        })
+                    
+                        # Start a new event
+                        event_start_idx = peaks[i]
+                        event_peak_idx = peaks[i]
+                        event_peak_value = current[peaks[i]]
+                    else:
+                        # Update peak value if higher
+                        if abs(current[peaks[i]]) > abs(event_peak_value):
+                            event_peak_idx = peaks[i]
+                            event_peak_value = current[peaks[i]]
+            
+                # Add the last event
+                if len(peaks) > 0:
+                    event_end_idx = peaks[-1]
+                    duration_ms = (time[event_end_idx] - time[event_start_idx]) * 1000  # convert to ms
+                
                     # Calculate transient energy
                     event_indices = range(event_start_idx, event_end_idx + 1)
                     energy = np.sum(np.square(current[event_indices]))
-                    
+                
                     events.append({
                         'start_time': time[event_start_idx],
                         'end_time': time[event_end_idx],
@@ -457,57 +486,28 @@ def analyze_transients(self, data, sensitivity=2, window_size=20):
                         'energy': energy,
                         'class': self._classify_transient(duration_ms, event_peak_value, rms_value)
                     })
-                    
-                    # Start a new event
-                    event_start_idx = peaks[i]
-                    event_peak_idx = peaks[i]
-                    event_peak_value = current[peaks[i]]
-                else:
-                    # Update peak value if higher
-                    if abs(current[peaks[i]]) > abs(event_peak_value):
-                        event_peak_idx = peaks[i]
-                        event_peak_value = current[peaks[i]]
-            
-            # Add the last event
-            if len(peaks) > 0:
-                event_end_idx = peaks[-1]
-                duration_ms = (time[event_end_idx] - time[event_start_idx]) * 1000  # convert to ms
-                
-                # Calculate transient energy
-                event_indices = range(event_start_idx, event_end_idx + 1)
-                energy = np.sum(np.square(current[event_indices]))
-                
-                events.append({
-                    'start_time': time[event_start_idx],
-                    'end_time': time[event_end_idx],
-                    'duration': duration_ms,
-                    'peak_value': event_peak_value,
-                    'peak_time': time[event_peak_idx],
-                    'energy': energy,
-                    'class': self._classify_transient(duration_ms, event_peak_value, rms_value)
-                })
         
-        # Calculate statistics
-        total_energy = sum(event['energy'] for event in events) if events else 0
-        max_peak = max([abs(event['peak_value']) for event in events]) if events else 0
-        avg_duration = np.mean([event['duration'] for event in events]) if events else 0
+            # Calculate statistics
+            total_energy = sum(event['energy'] for event in events) if events else 0
+            max_peak = max([abs(event['peak_value']) for event in events]) if events else 0
+            avg_duration = np.mean([event['duration'] for event in events]) if events else 0
         
-        return {
-            'type': 'transients',
-            'events': events,
-            'threshold': threshold,
-            'detected_count': len(events),
-            'time': time,
-            'current': current,
-            'baseline_rms': rms_value,
-            'total_energy': total_energy,
-            'max_peak': max_peak,
-            'avg_duration': avg_duration
-        }
-    except Exception as e:
-        logger.error(f"Error analyzing transients: {e}")
-        traceback.print_exc()
-        return None
+            return {
+                'type': 'transients',
+                'events': events,
+                'threshold': threshold,
+                'detected_count': len(events),
+                'time': time,
+                'current': current,
+                'baseline_rms': rms_value,
+                'total_energy': total_energy,
+                'max_peak': max_peak,
+                'avg_duration': avg_duration
+            }
+        except Exception as e:
+            logger.error(f"Error analyzing transients: {e}")
+            traceback.print_exc()
+            return None
 
     def _classify_transient(self, duration, peak_value, rms_value):
         """Classify transient based on duration and amplitude"""
@@ -528,27 +528,27 @@ def analyze_transients(self, data, sensitivity=2, window_size=20):
         """Compute cepstrum analysis for detecting periodicities"""
         if data is None or 'current' not in data or len(data['current']) == 0:
             return None
-            
+        
         try:
             # Get the magnitude spectrum
             fft_data = self.compute_fft(data, window_type='hann')
             if fft_data is None:
                 return None
-            
+        
             # Compute the real cepstrum
             # Take log of magnitude spectrum
             log_mag = np.log(fft_data['magnitude'] + 1e-10)
-            
+        
             # Take inverse FFT of log magnitude spectrum
             cepstrum = np.fft.irfft(log_mag)
-            
+        
             # Create quefrency axis (in seconds)
             n = len(cepstrum)
             quefrency = np.arange(n) * data['sample_interval']
-            
+        
             # Find peaks in cepstrum
             peaks, properties = signal.find_peaks(cepstrum, height=0.1*np.max(cepstrum))
-            
+        
             peak_data = []
             for i, peak_idx in enumerate(peaks):
                 # Convert quefrency to frequency
@@ -559,10 +559,10 @@ def analyze_transients(self, data, sensitivity=2, window_size=20):
                         'frequency': freq,
                         'amplitude': cepstrum[peak_idx]
                     })
-            
+        
             # Sort by amplitude
             peak_data = sorted(peak_data, key=lambda x: x['amplitude'], reverse=True)
-            
+        
             return {
                 'quefrency': quefrency,
                 'cepstrum': cepstrum,
@@ -573,239 +573,239 @@ def analyze_transients(self, data, sensitivity=2, window_size=20):
             traceback.print_exc()
             return None
     
-def analyze_multi_phase(self, data_dict, analysis_type='thd', phases=None):
-    """Analyze multiple phases together"""
-    if not data_dict or not isinstance(data_dict, dict):
-        return None
+    def analyze_multi_phase(self, data_dict, analysis_type='thd', phases=None):
+        """Analyze multiple phases together"""
+        if not data_dict or not isinstance(data_dict, dict):
+            return None
         
-    # If phases not specified, use all keys in data_dict
-    if phases is None:
-        phases = list(data_dict.keys())
+        # If phases not specified, use all keys in data_dict
+        if phases is None:
+            phases = list(data_dict.keys())
     
-    # Filter only specified phases
-    phase_data = {phase: data_dict[phase] for phase in phases if phase in data_dict}
+        # Filter only specified phases
+        phase_data = {phase: data_dict[phase] for phase in phases if phase in data_dict}
     
-    if not phase_data:
-        return None
+        if not phase_data:
+            return None
         
-    try:
-        if analysis_type == 'thd':
-            # Harmonics comparison
-            results = {}
+        try:
+            if analysis_type == 'thd':
+                # Harmonics comparison
+                results = {}
             
-            for phase, data in phase_data.items():
-                # Get harmonics for this phase
-                harmonic_data = self.compute_harmonics(data)
+                for phase, data in phase_data.items():
+                    # Get harmonics for this phase
+                    harmonic_data = self.compute_harmonics(data)
                 
-                if harmonic_data:
-                    results[phase] = {
-                        'thd': harmonic_data['thd'],
-                        'fundamental_freq': harmonic_data['fundamental_freq'],
-                        'fundamental_magnitude': harmonic_data['fundamental_magnitude'],
-                        'harmonics': harmonic_data['harmonics']
-                    }
+                    if harmonic_data:
+                        results[phase] = {
+                            'thd': harmonic_data['thd'],
+                            'fundamental_freq': harmonic_data['fundamental_freq'],
+                            'fundamental_magnitude': harmonic_data['fundamental_magnitude'],
+                            'harmonics': harmonic_data['harmonics']
+                        }
             
-            return {
-                'type': 'thd',
-                'phase_results': results
-            }
+                return {
+                    'type': 'thd',
+                    'phase_results': results
+                }
             
-        elif analysis_type == 'fft':
-            # Compare FFT for multiple phases
-            results = {}
+            elif analysis_type == 'fft':
+                # Compare FFT for multiple phases
+                results = {}
             
-            for phase, data in phase_data.items():
-                # Get FFT for this phase
-                fft_data = self.compute_fft(data)
+                for phase, data in phase_data.items():
+                    # Get FFT for this phase
+                    fft_data = self.compute_fft(data)
                 
-                if fft_data:
-                    results[phase] = {
-                        'freq': fft_data['freq'],
-                        'magnitude': fft_data['magnitude'],
-                        'magnitude_db': fft_data['magnitude_db']
-                    }
+                    if fft_data:
+                        results[phase] = {
+                            'freq': fft_data['freq'],
+                            'magnitude': fft_data['magnitude'],
+                            'magnitude_db': fft_data['magnitude_db']
+                        }
             
-            return {
-                'type': 'fft',
-                'phase_results': results
-            }
+                return {
+                    'type': 'fft',
+                    'phase_results': results
+                }
             
-        elif analysis_type == 'time':
-            # Compare time domain data
-            results = {}
+            elif analysis_type == 'time':
+                # Compare time domain data
+                results = {}
             
-            for phase, data in phase_data.items():
-                # Get metrics for this phase
-                metrics = self.calculate_metrics(data)
+                for phase, data in phase_data.items():
+                    # Get metrics for this phase
+                    metrics = self.calculate_metrics(data)
                 
-                if metrics:
-                    results[phase] = {
-                        'metrics': metrics,
-                        'time': data['time'],
-                        'current': data['current']
-                    }
+                    if metrics:
+                        results[phase] = {
+                            'metrics': metrics,
+                            'time': data['time'],
+                            'current': data['current']
+                        }
             
-            return {
-                'type': 'time',
-                'phase_results': results
-            }
+                return {
+                    'type': 'time',
+                    'phase_results': results
+                }
             
-        elif analysis_type == 'correlation':
-            # Compute correlation between phases
-            results = {}
-            correlation_matrix = {}
+            elif analysis_type == 'correlation':
+                # Compute correlation between phases
+                results = {}
+                correlation_matrix = {}
             
-            # First, collect all waveforms
-            waveforms = {}
-            for phase, data in phase_data.items():
-                waveforms[phase] = data['current']
+                # First, collect all waveforms
+                waveforms = {}
+                for phase, data in phase_data.items():
+                    waveforms[phase] = data['current']
             
-            # Compute correlation between all pairs
-            for phase1 in phases:
-                if phase1 not in correlation_matrix:
-                    correlation_matrix[phase1] = {}
+                # Compute correlation between all pairs
+                for phase1 in phases:
+                    if phase1 not in correlation_matrix:
+                        correlation_matrix[phase1] = {}
                 
-                for phase2 in phases:
-                    if phase1 in waveforms and phase2 in waveforms:
-                        # Compute correlation coefficient
-                        corr = np.corrcoef(waveforms[phase1], waveforms[phase2])[0, 1]
-                        correlation_matrix[phase1][phase2] = corr
+                    for phase2 in phases:
+                        if phase1 in waveforms and phase2 in waveforms:
+                            # Compute correlation coefficient
+                            corr = np.corrcoef(waveforms[phase1], waveforms[phase2])[0, 1]
+                            correlation_matrix[phase1][phase2] = corr
             
-            # Compute phase angles from correlation
-            phase_angles = {}
-            reference_phase = phases[0]
+                # Compute phase angles from correlation
+                phase_angles = {}
+                reference_phase = phases[0]
             
-            for phase in phases:
-                if phase in waveforms and reference_phase in waveforms:
-                    # Cross-correlation to find time delay
-                    cross_corr = signal.correlate(waveforms[reference_phase], waveforms[phase])
-                    lags = signal.correlation_lags(len(waveforms[reference_phase]), len(waveforms[phase]))
+                for phase in phases:
+                    if phase in waveforms and reference_phase in waveforms:
+                        # Cross-correlation to find time delay
+                        cross_corr = signal.correlate(waveforms[reference_phase], waveforms[phase])
+                        lags = signal.correlation_lags(len(waveforms[reference_phase]), len(waveforms[phase]))
                     
-                    # Find the lag with maximum correlation
-                    max_corr_idx = np.argmax(cross_corr)
-                    lag = lags[max_corr_idx]
+                        # Find the lag with maximum correlation
+                        max_corr_idx = np.argmax(cross_corr)
+                        lag = lags[max_corr_idx]
                     
-                    # Convert lag to phase angle (assuming 60Hz)
-                    # For a complete cycle of 60Hz, there should be sample_rate/60 samples
-                    sample_rate = 1 / phase_data[phase]['sample_interval']
-                    samples_per_cycle = sample_rate / 60
+                        # Convert lag to phase angle (assuming 60Hz)
+                        # For a complete cycle of 60Hz, there should be sample_rate/60 samples
+                        sample_rate = 1 / phase_data[phase]['sample_interval']
+                        samples_per_cycle = sample_rate / 60
                     
-                    # Convert lag to phase angle in degrees
-                    phase_angle = (lag / samples_per_cycle) * 360
+                        # Convert lag to phase angle in degrees
+                        phase_angle = (lag / samples_per_cycle) * 360
                     
-                    # Normalize to range [-180, 180]
-                    if phase_angle > 180:
-                        phase_angle -= 360
-                    elif phase_angle < -180:
-                        phase_angle += 360
+                        # Normalize to range [-180, 180]
+                        if phase_angle > 180:
+                            phase_angle -= 360
+                        elif phase_angle < -180:
+                            phase_angle += 360
                     
-                    phase_angles[phase] = phase_angle
+                        phase_angles[phase] = phase_angle
             
-            # Store results
-            results = {
-                'correlation_matrix': correlation_matrix,
-                'phase_angles': phase_angles,
-                'reference_phase': reference_phase
-            }
+                # Store results
+                results = {
+                    'correlation_matrix': correlation_matrix,
+                    'phase_angles': phase_angles,
+                    'reference_phase': reference_phase
+                }
             
-            return {
-                'type': 'correlation',
-                'correlation_results': results
-            }
+                return {
+                    'type': 'correlation',
+                    'correlation_results': results
+                }
             
-        elif analysis_type == 'impedance':
-            # Compute apparent impedance for each phase
-            # This is a simplified version, assuming we have voltage data
-            # In reality, we would need both voltage and current measurements
-            results = {}
+            elif analysis_type == 'impedance':
+                # Compute apparent impedance for each phase
+                # This is a simplified version, assuming we have voltage data
+                # In reality, we would need both voltage and current measurements
+                results = {}
             
-            for phase, data in phase_data.items():
-                # Get FFT for this phase
-                fft_data = self.compute_fft(data)
+                for phase, data in phase_data.items():
+                    # Get FFT for this phase
+                    fft_data = self.compute_fft(data)
                 
-                if fft_data:
-                    # For demo purposes, simulate voltage data
-                    # In reality, you would use actual voltage measurements
-                    voltage_magnitude = 120 * np.ones_like(fft_data['magnitude'])  # 120V nominal
+                    if fft_data:
+                        # For demo purposes, simulate voltage data
+                        # In reality, you would use actual voltage measurements
+                        voltage_magnitude = 120 * np.ones_like(fft_data['magnitude'])  # 120V nominal
                     
-                    # Compute apparent impedance (voltage/current)
-                    impedance = np.divide(
-                        voltage_magnitude, 
-                        fft_data['magnitude'], 
-                        out=np.zeros_like(fft_data['magnitude']), 
-                        where=fft_data['magnitude']>1e-10
-                    )
+                        # Compute apparent impedance (voltage/current)
+                        impedance = np.divide(
+                            voltage_magnitude, 
+                            fft_data['magnitude'], 
+                            out=np.zeros_like(fft_data['magnitude']), 
+                            where=fft_data['magnitude']>1e-10
+                        )
                     
-                    # Store results
-                    results[phase] = {
-                        'freq': fft_data['freq'],
-                        'impedance': impedance,
-                        'impedance_db': 20 * np.log10(impedance + 1e-10)
-                    }
+                        # Store results
+                        results[phase] = {
+                            'freq': fft_data['freq'],
+                            'impedance': impedance,
+                            'impedance_db': 20 * np.log10(impedance + 1e-10)
+                        }
             
-            return {
-                'type': 'impedance',
-                'phase_results': results
-            }
+                return {
+                    'type': 'impedance',
+                    'phase_results': results
+                }
         
-        return None
-    except Exception as e:
-        logger.error(f"Error in multi-phase analysis: {e}")
-        traceback.print_exc()
-        return None
+            return None
+        except Exception as e:
+            logger.error(f"Error in multi-phase analysis: {e}")
+            traceback.print_exc()
+            return None
             
-    def compute_waveform_distortion(self, data):
+    def compute_waveform_distortion(self, data, fundamental_freq=60):
         """Analyze waveform distortion parameters"""
         if data is None or 'current' not in data or len(data['current']) == 0:
             return None
-            
+        
         try:
             current = data['current']
-            
+        
             # Compute harmonics first
-            harmonics_data = self.compute_harmonics(data)
+            harmonics_data = self.compute_harmonics(data, fundamental_freq=fundamental_freq)
             if harmonics_data is None:
                 return None
-            
+        
             # Calculate key distortion parameters
-            
+        
             # Total Harmonic Distortion (already in harmonics_data)
             thd = harmonics_data['thd']
-            
+        
             # Calculate form factor
             rms_value = np.sqrt(np.mean(np.square(current)))
             mean_abs = np.mean(np.abs(current))
             form_factor = rms_value / mean_abs if mean_abs > 0 else 0
-            
+        
             # Calculate crest factor
             peak_value = np.max(np.abs(current))
             crest_factor = peak_value / rms_value if rms_value > 0 else 0
-            
+        
             # Calculate K-factor (weighs harmonics by their square of harmonic order)
             harmonics = harmonics_data['harmonics']
             sum_h_squared = 0
             sum_h = 0
-            
+        
             for h in harmonics:
                 h_order = h['harmonic']
                 h_mag_squared = h['magnitude']**2
                 sum_h_squared += h_order**2 * h_mag_squared
                 sum_h += h_mag_squared
-            
+        
             k_factor = sum_h_squared / sum_h if sum_h > 0 else 0
-            
+        
             # Calculate transformer derating factor (TDF) - simplified
             tdf = 1 / np.sqrt(1 + (thd/100)**2)
-            
+        
             # Group harmonics by type
             even_harmonics = [h for h in harmonics if h['harmonic'] % 2 == 0]
             odd_harmonics = [h for h in harmonics if h['harmonic'] % 2 == 1 and h['harmonic'] > 1]
             triplen_harmonics = [h for h in harmonics if h['harmonic'] % 3 == 0]
-            
+        
             even_thd = np.sqrt(sum(h['magnitude']**2 for h in even_harmonics)) / harmonics[0]['magnitude'] * 100
             odd_thd = np.sqrt(sum(h['magnitude']**2 for h in odd_harmonics)) / harmonics[0]['magnitude'] * 100
             triplen_thd = np.sqrt(sum(h['magnitude']**2 for h in triplen_harmonics)) / harmonics[0]['magnitude'] * 100
-            
+        
             return {
                 'thd': thd,
                 'form_factor': form_factor,

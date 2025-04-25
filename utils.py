@@ -308,17 +308,19 @@ def apply_theme_to_figure(fig, dark_mode=False):
             font={'color': DARK_MODE_STYLES['text']},
             title={'font': {'color': DARK_MODE_STYLES['text']}},
             legend={'font': {'color': DARK_MODE_STYLES['text']}},
-            template='plotly_dark'
+            colorway=px.colors.qualitative.Dark24 if 'px' in globals() else None
         )
         fig.update_xaxes(
             gridcolor=DARK_MODE_STYLES['plot_grid'],
             zerolinecolor=DARK_MODE_STYLES['plot_grid'],
-            title={'font': {'color': DARK_MODE_STYLES['text']}}
+            title={'font': {'color': DARK_MODE_STYLES['text']}},
+            tickfont={'color': DARK_MODE_STYLES['text']}
         )
         fig.update_yaxes(
             gridcolor=DARK_MODE_STYLES['plot_grid'],
             zerolinecolor=DARK_MODE_STYLES['plot_grid'],
-            title={'font': {'color': DARK_MODE_STYLES['text']}}
+            title={'font': {'color': DARK_MODE_STYLES['text']}},
+            tickfont={'color': DARK_MODE_STYLES['text']}
         )
     else:
         fig.update_layout(
@@ -327,17 +329,19 @@ def apply_theme_to_figure(fig, dark_mode=False):
             font={'color': LIGHT_MODE_STYLES['text']},
             title={'font': {'color': LIGHT_MODE_STYLES['text']}},
             legend={'font': {'color': LIGHT_MODE_STYLES['text']}},
-            template='plotly_white'
+            colorway=px.colors.qualitative.Plotly if 'px' in globals() else None
         )
         fig.update_xaxes(
             gridcolor=LIGHT_MODE_STYLES['plot_grid'],
             zerolinecolor=LIGHT_MODE_STYLES['plot_grid'],
-            title={'font': {'color': LIGHT_MODE_STYLES['text']}}
+            title={'font': {'color': LIGHT_MODE_STYLES['text']}},
+            tickfont={'color': LIGHT_MODE_STYLES['text']}
         )
         fig.update_yaxes(
             gridcolor=LIGHT_MODE_STYLES['plot_grid'],
             zerolinecolor=LIGHT_MODE_STYLES['plot_grid'],
-            title={'font': {'color': LIGHT_MODE_STYLES['text']}}
+            title={'font': {'color': LIGHT_MODE_STYLES['text']}},
+            tickfont={'color': LIGHT_MODE_STYLES['text']}
         )
     
     return fig

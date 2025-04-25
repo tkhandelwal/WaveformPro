@@ -64,11 +64,14 @@ app.layout = create_main_layout(systems)
 # ======= Callbacks =======
 
 # Callback to handle dark mode toggle
+# Callback to handle dark mode toggle
 @app.callback(
     Output('theme-store', 'data'),
     Output('app-container', 'style'),
+    Output('dark-mode-switch', 'value', allow_duplicate=True),  # Allow duplicate to handle initialization
     Input('dark-mode-switch', 'value'),
-    State('theme-store', 'data')
+    State('theme-store', 'data'),
+    prevent_initial_call=True
 )
 def toggle_dark_mode(dark_mode_enabled, current_theme):
     if current_theme is None:
@@ -76,20 +79,39 @@ def toggle_dark_mode(dark_mode_enabled, current_theme):
     
     current_theme['dark_mode'] = dark_mode_enabled
     
+    # Get style based on theme
     if dark_mode_enabled:
         app_style = {
             'backgroundColor': DARK_MODE_STYLES['background'],
             'color': DARK_MODE_STYLES['text'],
-            'minHeight': '100vh'
+            'minHeight': '100vh',
+            'transition': 'background-color 0.3s, color 0.3s'
         }
     else:
         app_style = {
             'backgroundColor': LIGHT_MODE_STYLES['background'],
             'color': LIGHT_MODE_STYLES['text'],
-            'minHeight': '100vh'
+            'minHeight': '100vh',
+            'transition': 'background-color 0.3s, color 0.3s'
         }
     
-    return current_theme, app_style
+    # Add client-side callback to update the body class
+    app.clientside_callback(
+        """
+        function(darkMode) {
+            if(darkMode) {
+                document.body.classList.add('dark-mode');
+            } else {
+                document.body.classList.remove('dark-mode');
+            }
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('dark-mode-switch', 'id'),  # Dummy output that won't actually change
+        Input('dark-mode-switch', 'value')
+    )
+    
+    return current_theme, app_style, dark_mode_enabled
 
 # Callback for tab content
 @app.callback(

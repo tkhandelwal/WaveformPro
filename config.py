@@ -55,6 +55,7 @@ FLICKER_PST_THRESHOLD = 1.0
 FLICKER_PLT_THRESHOLD = 0.8
 
 # Theme settings
+# Theme settings with additional controls
 DARK_MODE_STYLES = {
     'background': '#1e1e1e',
     'text': '#ffffff',
@@ -76,7 +77,16 @@ DARK_MODE_STYLES = {
     'table_row_odd': '#353535',
     'slider_rail': '#555555',
     'slider_track': '#0066cc',
-    'slider_handle': '#0066cc'
+    'slider_handle': '#0066cc',
+    'tooltip_bg': '#555555',
+    'tooltip_text': '#ffffff',
+    'loading_color': '#0066cc',
+    'upload_border': '#555555',
+    'upload_bg': '#3d3d3d',
+    'upload_text': '#ffffff',
+    'radio_active': '#0066cc',
+    'checkbox_active': '#0066cc',
+    'menu_hover': '#4d4d4d'
 }
 
 LIGHT_MODE_STYLES = {
@@ -100,7 +110,16 @@ LIGHT_MODE_STYLES = {
     'table_row_odd': '#f8f9fa',
     'slider_rail': '#dddddd',
     'slider_track': '#0066cc',
-    'slider_handle': '#0066cc'
+    'slider_handle': '#0066cc',
+    'tooltip_bg': '#f8f9fa',
+    'tooltip_text': '#333333',
+    'loading_color': '#0066cc',
+    'upload_border': '#cccccc',
+    'upload_bg': '#f8f9fa',
+    'upload_text': '#333333',
+    'radio_active': '#0066cc',
+    'checkbox_active': '#0066cc',
+    'menu_hover': '#e9ecef'
 }
 
 # Plotting settings

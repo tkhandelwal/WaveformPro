@@ -1499,37 +1499,127 @@ class PlotGenerator:
                 plot_bgcolor=DARK_MODE_STYLES['plot_bg'],
                 font={'color': DARK_MODE_STYLES['text']},
                 title={'font': {'color': DARK_MODE_STYLES['text']}},
-                legend={'font': {'color': DARK_MODE_STYLES['text']}},
-                template='plotly_dark'
+                legend={
+                    'font': {'color': DARK_MODE_STYLES['text']},
+                    'bgcolor': DARK_MODE_STYLES['plot_bg'],
+                    'bordercolor': DARK_MODE_STYLES['plot_grid']
+                },
+                modebar={'bgcolor': 'rgba(45, 45, 45, 0.7)', 'color': DARK_MODE_STYLES['text']},
+                hoverlabel={'bgcolor': DARK_MODE_STYLES['tooltip_bg'], 'font': {'color': DARK_MODE_STYLES['tooltip_text']}},
+                coloraxis={'colorbar': {'tickfont': {'color': DARK_MODE_STYLES['text']}}}
             )
+        
+            # Update all xaxes
             fig.update_xaxes(
                 gridcolor=DARK_MODE_STYLES['plot_grid'],
                 zerolinecolor=DARK_MODE_STYLES['plot_grid'],
-                title={'font': {'color': DARK_MODE_STYLES['text']}}
+                linecolor=DARK_MODE_STYLES['plot_grid'],
+                title={'font': {'color': DARK_MODE_STYLES['text']}},
+                tickfont={'color': DARK_MODE_STYLES['text']}
             )
+        
+            # Update all yaxes
             fig.update_yaxes(
                 gridcolor=DARK_MODE_STYLES['plot_grid'],
                 zerolinecolor=DARK_MODE_STYLES['plot_grid'],
-                title={'font': {'color': DARK_MODE_STYLES['text']}}
+                linecolor=DARK_MODE_STYLES['plot_grid'],
+                title={'font': {'color': DARK_MODE_STYLES['text']}},
+                tickfont={'color': DARK_MODE_STYLES['text']}
             )
+        
+            # Specific handling for 3D plots
+            if hasattr(fig, 'layout') and hasattr(fig.layout, 'scene'):
+                fig.update_layout(
+                    scene={
+                        'xaxis': {
+                            'gridcolor': DARK_MODE_STYLES['plot_grid'],
+                            'zerolinecolor': DARK_MODE_STYLES['plot_grid'],
+                            'backgroundcolor': DARK_MODE_STYLES['plot_bg'],
+                            'showbackground': True,
+                            'title': {'font': {'color': DARK_MODE_STYLES['text']}},
+                            'tickfont': {'color': DARK_MODE_STYLES['text']}
+                        },
+                        'yaxis': {
+                            'gridcolor': DARK_MODE_STYLES['plot_grid'],
+                            'zerolinecolor': DARK_MODE_STYLES['plot_grid'],
+                            'backgroundcolor': DARK_MODE_STYLES['plot_bg'],
+                            'showbackground': True,
+                            'title': {'font': {'color': DARK_MODE_STYLES['text']}},
+                            'tickfont': {'color': DARK_MODE_STYLES['text']}
+                        },
+                        'zaxis': {
+                            'gridcolor': DARK_MODE_STYLES['plot_grid'],
+                            'zerolinecolor': DARK_MODE_STYLES['plot_grid'],
+                            'backgroundcolor': DARK_MODE_STYLES['plot_bg'],
+                            'showbackground': True,
+                            'title': {'font': {'color': DARK_MODE_STYLES['text']}},
+                            'tickfont': {'color': DARK_MODE_STYLES['text']}
+                        }
+                    }
+                )
         else:
             fig.update_layout(
                 paper_bgcolor=LIGHT_MODE_STYLES['plot_paper_bg'],
                 plot_bgcolor=LIGHT_MODE_STYLES['plot_bg'],
                 font={'color': LIGHT_MODE_STYLES['text']},
                 title={'font': {'color': LIGHT_MODE_STYLES['text']}},
-                legend={'font': {'color': LIGHT_MODE_STYLES['text']}},
-                template='plotly_white'
+                legend={
+                    'font': {'color': LIGHT_MODE_STYLES['text']},
+                    'bgcolor': LIGHT_MODE_STYLES['plot_bg'],
+                    'bordercolor': LIGHT_MODE_STYLES['plot_grid']
+                },
+                modebar={'bgcolor': 'rgba(255, 255, 255, 0.7)', 'color': LIGHT_MODE_STYLES['text']},
+                hoverlabel={'bgcolor': LIGHT_MODE_STYLES['tooltip_bg'], 'font': {'color': LIGHT_MODE_STYLES['tooltip_text']}},
+                coloraxis={'colorbar': {'tickfont': {'color': LIGHT_MODE_STYLES['text']}}}
             )
+        
+            # Update all xaxes
             fig.update_xaxes(
                 gridcolor=LIGHT_MODE_STYLES['plot_grid'],
                 zerolinecolor=LIGHT_MODE_STYLES['plot_grid'],
-                title={'font': {'color': LIGHT_MODE_STYLES['text']}}
+                linecolor=LIGHT_MODE_STYLES['plot_grid'],
+                title={'font': {'color': LIGHT_MODE_STYLES['text']}},
+                tickfont={'color': LIGHT_MODE_STYLES['text']}
             )
+        
+            # Update all yaxes
             fig.update_yaxes(
                 gridcolor=LIGHT_MODE_STYLES['plot_grid'],
                 zerolinecolor=LIGHT_MODE_STYLES['plot_grid'],
-                title={'font': {'color': LIGHT_MODE_STYLES['text']}}
+                linecolor=LIGHT_MODE_STYLES['plot_grid'],
+                title={'font': {'color': LIGHT_MODE_STYLES['text']}},
+                tickfont={'color': LIGHT_MODE_STYLES['text']}
             )
         
+            # Specific handling for 3D plots
+            if hasattr(fig, 'layout') and hasattr(fig.layout, 'scene'):
+                fig.update_layout(
+                    scene={
+                        'xaxis': {
+                            'gridcolor': LIGHT_MODE_STYLES['plot_grid'],
+                            'zerolinecolor': LIGHT_MODE_STYLES['plot_grid'],
+                            'backgroundcolor': LIGHT_MODE_STYLES['plot_bg'],
+                            'showbackground': True,
+                            'title': {'font': {'color': LIGHT_MODE_STYLES['text']}},
+                            'tickfont': {'color': LIGHT_MODE_STYLES['text']}
+                        },
+                        'yaxis': {
+                            'gridcolor': LIGHT_MODE_STYLES['plot_grid'],
+                            'zerolinecolor': LIGHT_MODE_STYLES['plot_grid'],
+                            'backgroundcolor': LIGHT_MODE_STYLES['plot_bg'],
+                            'showbackground': True,
+                            'title': {'font': {'color': LIGHT_MODE_STYLES['text']}},
+                            'tickfont': {'color': LIGHT_MODE_STYLES['text']}
+                        },
+                        'zaxis': {
+                            'gridcolor': LIGHT_MODE_STYLES['plot_grid'],
+                            'zerolinecolor': LIGHT_MODE_STYLES['plot_grid'],
+                            'backgroundcolor': LIGHT_MODE_STYLES['plot_bg'],
+                            'showbackground': True,
+                            'title': {'font': {'color': LIGHT_MODE_STYLES['text']}},
+                            'tickfont': {'color': LIGHT_MODE_STYLES['text']}
+                        }
+                    }
+                )
+    
         return fig

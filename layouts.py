@@ -7,6 +7,7 @@ from config import (
     DARK_MODE_STYLES, LIGHT_MODE_STYLES, HARMONICS_VIEW_OPTIONS
 )
 
+# In the create_header function in layouts.py
 def create_header(dark_mode=False):
     """Create application header"""
     header_style = {
@@ -30,7 +31,9 @@ def create_header(dark_mode=False):
             dbc.Switch(
                 id='dark-mode-switch',
                 value=dark_mode,
-                className="ml-auto"
+                className="ml-auto",
+                persistence=True,
+                persistence_type='local'
             )
         ], style={'display': 'flex', 'alignItems': 'center'})
     ], style=header_style)

@@ -242,7 +242,10 @@ def create_analysis_content(dark_mode=False):
                             {'label': 'STFT', 'value': 'stft'},
                             {'label': 'Cepstrum', 'value': 'cepstrum'},
                             {'label': 'Waveform Distortion', 'value': 'distortion'},
-                            {'label': 'Multi-Phase', 'value': 'multi_phase'}
+                            {'label': 'Multi-Phase', 'value': 'multi_phase'},
+                            {'label': 'Coherence Analysis', 'value': 'coherence'},
+                            {'label': 'Symmetrical Components', 'value': 'symmetrical'},
+                            {'label': 'Power Quality Index', 'value': 'pqi'}
                         ],
                         value='time',
                         labelStyle={'display': 'block', 'marginBottom': '10px'}
@@ -329,9 +332,8 @@ def create_visualization_content(dark_mode=False):
                             {'label': 'Harmonic Spectrum', 'value': 'harmonics'},
                             {'label': 'Wavelet Decomposition', 'value': 'wavelet'},
                             {'label': 'Transient Analysis', 'value': 'transients'},
-                            {'label': 'Multi-Phase', 'value': 'multi_phase'}
-                            {'label': '3D Harmonic Visualization', 'value': '3d_harmonics'}  # Add this line
-
+                            {'label': 'Multi-Phase', 'value': 'multi_phase'},
+                            {'label': '3D Harmonic Visualization', 'value': '3d_harmonics'}
                         ],
                         value='time',
                         labelStyle={'display': 'block', 'marginBottom': '10px'}

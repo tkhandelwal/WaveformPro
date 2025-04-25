@@ -62,7 +62,7 @@ class SignalProcessor:
             elif window_type == 'blackman':
                 window = np.blackman(n)
             elif window_type == 'flattop':
-                window = signal.flattop(n)
+                window = signal.windows.flattop(n)
             else:
                 window = np.ones(n)  # Rectangular window (no window)
                 
@@ -309,17 +309,17 @@ class SignalProcessor:
         """Compute wavelet decomposition"""
         if data is None or 'current' not in data or len(data['current']) == 0:
             return None
-            
+        
         try:
             # Get the wavelet coefficients
             coeffs = pywt.wavedec(data['current'], wavelet, level=level)
-            
+        
             # Reconstruct signals at each level
             reconstructed = []
             for i in range(level + 1):
                 coeff_list = [None] * (level + 1)
                 coeff_list[i] = coeffs[i]
-                
+            
                 # Replace all other coefficients with zeros
                 for j in range(level + 1):
                     if j != i:
@@ -327,21 +327,57 @@ class SignalProcessor:
                             coeff_list[j] = np.zeros_like(coeffs[j])
                         else:  # Details
                             coeff_list[j] = np.zeros_like(coeffs[j])
-                
+            
                 # Reconstruct signal
                 reconstructed.append(pywt.waverec(coeff_list, wavelet))
-            
+        
             # Ensure all reconstructed signals have the same length
             min_length = min(len(sig) for sig in reconstructed)
             reconstructed = [sig[:min_length] for sig in reconstructed]
-            
+        
             # Create time array for reconstructed signals
             if len(data['time']) >= min_length:
                 time = data['time'][:min_length]
             else:
                 # Interpolate if necessary
                 time = np.linspace(data['time'][0], data['time'][-1], min_length)
-            
+        
+            # Calculate energy metrics for each level
+            energy_distribution = []
+            for i, coeff in enumerate(coeffs):
+                energy = np.sum(coeff**2)
+                energy_distribution.append({
+                    'level': 'A' if i == 0 else f"D{i}",
+                    'energy': float(energy),
+                    'percentage': 0  # Will calculate after total
+                })
+        
+            # Calculate total energy and percentages
+            total_energy = sum(item['energy'] for item in energy_distribution)
+            for item in energy_distribution:
+                item['percentage'] = (item['energy'] / total_energy) * 100 if total_energy > 0 else 0
+        
+            # Find dominant frequency bands
+            dominant_level = max(energy_distribution, key=lambda x: x['energy'])
+        
+            # Calculate frequency bands corresponding to each level
+            nyquist_freq = 0.5 / data['sample_interval']
+            freq_bands = []
+            for i in range(1, level + 1):
+                # For detail coefficients Di at level i
+                upper_freq = nyquist_freq / (2**(i-1))
+                lower_freq = nyquist_freq / (2**i)
+                freq_bands.append({
+                    'level': f"D{i}",
+                    'frequency_range': [lower_freq, upper_freq]
+                })
+        
+            # For approximation
+            freq_bands.append({
+                'level': 'A',
+                'frequency_range': [0, nyquist_freq / (2**level)]
+            })
+        
             # Prepare result
             result = {
                 'time': time,
@@ -349,15 +385,23 @@ class SignalProcessor:
                 'level': level,
                 'approximation': reconstructed[0],
                 'details': reconstructed[1:],
-                'coefficients': coeffs
+                'coefficients': [coeff.tolist() if isinstance(coeff, np.ndarray) else coeff for coeff in coeffs],
+                'metrics': {
+                    'energy_distribution': energy_distribution,
+                    'total_energy': total_energy,
+                    'dominant_level': dominant_level['level'],
+                    'dominant_energy_percentage': dominant_level['percentage'],
+                    'frequency_bands': freq_bands
+                }
             }
-            
+        
             return result
         except Exception as e:
             logger.error(f"Error computing wavelet decomposition: {e}")
             traceback.print_exc()
             return None
             
+
     def analyze_power_quality(self, data, analysis_type='flicker', sensitivity=2):
         """Analyze power quality issues (flicker, transients, etc.)"""
         if data is None or 'current' not in data or len(data['current']) == 0:
@@ -726,8 +770,21 @@ class SignalProcessor:
                     if fft_data:
                         # For demo purposes, simulate voltage data
                         # In reality, you would use actual voltage measurements
-                        voltage_magnitude = 120 * np.ones_like(fft_data['magnitude'])  # 120V nominal
-                    
+                        nominal_voltage = 120  # 120V nominal
+                        voltage_magnitude = np.zeros_like(fft_data['magnitude'])
+                        fundamental_idx = np.argmin(np.abs(fft_data['freq'] - 60))  # 60Hz
+
+                        # Set fundamental and some harmonics
+                        voltage_magnitude[fundamental_idx] = nominal_voltage
+                        # 3rd harmonic (5%)
+                        if 3*fundamental_idx < len(voltage_magnitude):
+                            voltage_magnitude[3*fundamental_idx] = nominal_voltage * 0.05
+                        # 5th harmonic (3%)
+                        if 5*fundamental_idx < len(voltage_magnitude):
+                            voltage_magnitude[5*fundamental_idx] = nominal_voltage * 0.03
+
+                        
+
                         # Compute apparent impedance (voltage/current)
                         impedance = np.divide(
                             voltage_magnitude, 
@@ -735,12 +792,18 @@ class SignalProcessor:
                             out=np.zeros_like(fft_data['magnitude']), 
                             where=fft_data['magnitude']>1e-10
                         )
+
+                        # Calculate impedance statistics
+                        fund_idx = np.argmin(np.abs(fft_data['freq'] - 60))
+                        fundamental_impedance = impedance[fund_idx]
                     
                         # Store results
                         results[phase] = {
                             'freq': fft_data['freq'],
                             'impedance': impedance,
-                            'impedance_db': 20 * np.log10(impedance + 1e-10)
+                            'impedance_db': 20 * np.log10(impedance + 1e-10),
+                            'fundamental_impedance': fundamental_impedance,
+                            'fundamental_freq': fft_data['freq'][fund_idx]
                         }
             
                 return {

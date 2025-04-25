@@ -325,10 +325,26 @@ def update_visualization(n_clicks, viz_type, data_json, harmonics_data, wavelet_
             fig = plot_generator.create_transient_plot(t_data, dark_mode=dark_mode)
             return dcc.Graph(figure=fig, config={'displayModeBar': True}), {'type': 'transients'}
     
+    elif viz_type == '3d_harmonics':
+        if data_json:
+            data = convert_from_json(data_json)
+            fig = plot_generator.create_3d_harmonic_visualization(data, dark_mode=dark_mode)
+            return dcc.Graph(figure=fig, config={'displayModeBar': True}), {'type': '3d_harmonics'}
+        else:
+            return html.Div("Please load data first to generate 3D visualization"), None
+
     elif viz_type == 'multi_phase':
         if multi_phase_data:
             mp_data = convert_from_json(multi_phase_data)
-            fig = plot_generator.create_multi_phase_harmonic_plot(mp_data, dark_mode=dark_mode)
+            # Determine appropriate plot based on the analysis type
+            if mp_data['type'] == 'thd':
+                fig = plot_generator.create_multi_phase_harmonic_plot(mp_data, dark_mode=dark_mode)
+            elif mp_data['type'] == 'fft':
+                fig = plot_generator.create_multi_phase_fft_plot(mp_data, dark_mode=dark_mode)
+            elif mp_data['type'] == 'time':
+                fig = plot_generator.create_multi_phase_time_plot(mp_data, dark_mode=dark_mode)
+            elif mp_data['type'] == 'correlation':
+                fig = plot_generator.create_multi_phase_correlation_plot(mp_data, dark_mode=dark_mode)
             return dcc.Graph(figure=fig, config={'displayModeBar': True}), {'type': 'multi_phase'}
         else:
             # For visualization only, create a simple demo
@@ -361,6 +377,73 @@ def export_visualization(n_clicks, export_format, viz_data, current_data):
     # This would typically be implemented with a clientside JavaScript callback
     
     return dash.no_update
+
+# Add this callback to app.py
+@app.callback(
+    Output('report-preview', 'children'),
+    Input('generate-report-button', 'n_clicks'),
+    [State('report-title', 'value'),
+     State('report-include', 'value'),
+     State('current-data', 'data'),
+     State('analysis-results-store', 'data'),
+     State('harmonics-data', 'data'),
+     State('wavelet-data', 'data'),
+     State('power-quality-data', 'data'),
+     State('transient-data', 'data'),
+     State('multi-phase-data', 'data'),
+     State('theme-store', 'data')],
+    prevent_initial_call=True
+)
+def generate_report(n_clicks, report_title, included_sections, data_json, 
+                   analysis_results, harmonics_data, wavelet_data, 
+                   power_quality_data, transient_data, multi_phase_data, theme_data):
+    if not n_clicks or not data_json or not included_sections:
+        return "Select analyses and click Generate Report to preview."
+    
+    dark_mode = theme_data.get('dark_mode', False) if theme_data else False
+    
+    # Convert data from JSON
+    data = convert_from_json(data_json)
+    
+    # Create report elements
+    report_elements = []
+    
+    # Add title
+    if not report_title:
+        report_title = "WaveformPro Analysis Report"
+    
+    report_elements.append(html.H2(report_title, style={'marginBottom': '20px'}))
+    
+    # Add date
+    from datetime import datetime
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    report_elements.append(html.P(f"Generated: {now}", style={'marginBottom': '30px'}))
+    
+    # Add sections based on user selection
+    if 'time' in included_sections:
+        report_elements.append(html.H3("Time Domain Analysis", style={'marginTop': '30px'}))
+        metrics = signal_processor.calculate_metrics(data)
+        report_elements.append(create_metrics_table(metrics, dark_mode))
+        fig = plot_generator.create_time_domain_plot(data, dark_mode=dark_mode)
+        report_elements.append(dcc.Graph(figure=fig))
+    
+    if 'fft' in included_sections:
+        report_elements.append(html.H3("Frequency Domain Analysis", style={'marginTop': '30px'}))
+        fft_data = signal_processor.compute_fft(data)
+        fig = plot_generator.create_frequency_domain_plot(fft_data, dark_mode=dark_mode)
+        report_elements.append(dcc.Graph(figure=fig))
+    
+    if 'harmonics' in included_sections and harmonics_data:
+        report_elements.append(html.H3("Harmonics Analysis", style={'marginTop': '30px'}))
+        h_data = convert_from_json(harmonics_data)
+        report_elements.append(html.P(f"Total Harmonic Distortion (THD): {h_data['thd']:.2f}%"))
+        fig = plot_generator.create_harmonics_plot(h_data, dark_mode=dark_mode)
+        report_elements.append(dcc.Graph(figure=fig))
+    
+    # Add more sections for other analysis types
+    # ...
+    
+    return report_elements
 
 # Callback to update analysis parameters based on analysis type
 @app.callback(

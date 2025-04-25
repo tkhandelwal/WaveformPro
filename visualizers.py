@@ -166,21 +166,36 @@ class PlotGenerator:
         if spectrogram_data is None or 'power' not in spectrogram_data:
             return go.Figure()
             
-        # Create figure using heatmap
+        # Create figure using 3D surface for a different visualization
         fig = go.Figure()
         
-        # Add heatmap
-        fig.add_trace(go.Heatmap(
-            z=spectrogram_data['power'],
-            x=spectrogram_data['time'],
-            y=spectrogram_data['freq'],
+        # Extract and reshape data
+        power = spectrogram_data['power']
+        times = spectrogram_data['time']
+        freqs = spectrogram_data['freq']
+
+         # Use contour plot instead of heatmap for distinction from STFT
+        fig.add_trace(go.Contour(
+            z=power,
+            x=times,
+            y=freqs,
             colorscale=colormap,
+            contours=dict(
+                start=-80,
+                end=0,
+                size=5,
+                showlabels=True,
+                labelfont=dict(
+                    color='white' if dark_mode else 'black',
+                    size=10,
+                )
+            ),
             colorbar=dict(title='Power (dB)')
         ))
         
         # Update layout
         fig.update_layout(
-            title='Spectrogram Analysis',
+            title='Spectrogram Analysis (Contour View)',
             xaxis_title='Time (s)',
             yaxis_title='Frequency (Hz)',
             yaxis_range=[0, min(500, max(spectrogram_data['freq']))],  # Limit to 0-500 Hz for better visibility
@@ -1179,57 +1194,146 @@ class PlotGenerator:
     
         return fig
     
-def create_3d_harmonic_visualization(self, data, dark_mode=False):
-    """Create 3D visualization of harmonics over time"""
-    # Calculate FFT for segments of the signal
-    sample_rate = 1 / data['sample_interval']
-    segment_size = int(sample_rate / 10)  # 0.1 second segments
+    def create_3d_harmonic_visualization(self, data, dark_mode=False):
+        """Create 3D visualization of harmonics over time"""
+        # Calculate FFT for segments of the signal
+        sample_rate = 1 / data['sample_interval']
+        segment_size = int(sample_rate / 10)  # 0.1 second segments
     
-    if len(data['current']) < segment_size * 3:
-        return go.Figure()  # Not enough data
+        if len(data['current']) < segment_size * 3:
+            return go.Figure()  # Not enough data
     
-    segments = []
-    times = []
-    for i in range(0, len(data['current']) - segment_size, segment_size):
-        segment = data['current'][i:i+segment_size]
-        times.append(data['time'][i])
+        segments = []
+        times = []
+        for i in range(0, len(data['current']) - segment_size, segment_size):
+            segment = data['current'][i:i+segment_size]
+            times.append(data['time'][i])
         
-        # Calculate FFT for this segment
-        fft = np.abs(np.fft.rfft(segment))
-        freq = np.fft.rfftfreq(len(segment), data['sample_interval'])
+            # Calculate FFT for this segment
+            fft = np.abs(np.fft.rfft(segment))
+            freq = np.fft.rfftfreq(len(segment), data['sample_interval'])
         
-        # Store only frequency components up to 500 Hz
-        cutoff = np.searchsorted(freq, 500)
-        segments.append(fft[:cutoff])
+            # Store only frequency components up to 500 Hz
+            cutoff = np.searchsorted(freq, 500)
+            segments.append(fft[:cutoff])
     
-    # Make all segments the same length
-    min_length = min(len(s) for s in segments)
-    segments = [s[:min_length] for s in segments]
-    freq = freq[:min_length]
+        # Make all segments the same length
+        min_length = min(len(s) for s in segments)
+        segments = [s[:min_length] for s in segments]
+        freq = freq[:min_length]
     
-    # Create 3D surface
-    fig = go.Figure(data=[go.Surface(
-        z=np.array(segments),
-        x=freq,
-        y=times,
-        colorscale='Viridis'
-    )])
+        # Create 3D surface
+        fig = go.Figure(data=[go.Surface(
+            z=np.array(segments),
+            x=freq,
+            y=times,
+            colorscale='Viridis'
+        )])
     
-    # Update layout
-    fig.update_layout(
-        title='3D Harmonic Spectrum Over Time',
-        scene=dict(
-            xaxis_title='Frequency (Hz)',
-            yaxis_title='Time (s)',
-            zaxis_title='Magnitude',
-            xaxis=dict(range=[0, 500]),
-        ),
-        template='plotly_dark' if dark_mode else 'plotly_white',
-        margin=dict(l=50, r=50, t=80, b=50)
-    )
+        # Update layout
+        fig.update_layout(
+            title='3D Harmonic Spectrum Over Time',
+            scene=dict(
+                xaxis_title='Frequency (Hz)',
+                yaxis_title='Time (s)',
+                zaxis_title='Magnitude',
+                xaxis=dict(range=[0, 500]),
+            ),
+            template='plotly_dark' if dark_mode else 'plotly_white',
+            margin=dict(l=50, r=50, t=80, b=50)
+        )
     
-    return fig
+        return fig
 
+    def create_multi_phase_time_plot(self, multi_phase_data, plot_style='overlay', dark_mode=False, phase_map=None):
+        """Create multi-phase time domain comparison plot"""
+        if multi_phase_data is None or 'type' not in multi_phase_data or multi_phase_data['type'] != 'time':
+            return go.Figure()
+        
+        # Extract data
+        phase_results = multi_phase_data['phase_results']
+        phases = list(phase_results.keys())
+    
+        # Use provided phase_map or default to phase number
+        if phase_map is None:
+            phase_map = {phase: phase for phase in phases}
+
+        if plot_style == 'overlay':
+            # Create figure
+            fig = go.Figure()
+    
+            # Add traces for each phase
+            colors = px.colors.qualitative.Plotly
+            for i, phase in enumerate(phases):
+                phase_data = phase_results[phase]
+        
+                # Add time domain trace
+                fig.add_trace(go.Scatter(
+                    x=phase_data['time'],
+                    y=phase_data['current'],
+                    mode='lines',
+                    name=f'Phase {phase_map.get(phase, phase)}',
+                    line=dict(color=colors[i % len(colors)], width=1.5)
+                ))
+    
+            # Update layout
+            fig.update_layout(
+                title=f"Multi-Phase Time Domain Comparison",
+                xaxis_title='Time (s)',
+                yaxis_title='Current (A)',
+                template='plotly_dark' if dark_mode else 'plotly_white',
+                margin=dict(l=50, r=50, t=80, b=50),
+                hovermode='closest'
+            )
+        else:  # Separate
+            # Create figure with subplots
+            fig = sp.make_subplots(
+                rows=len(phases), 
+                cols=1,
+                subplot_titles=[f'Phase {phase_map.get(phase, phase)}' for phase in phases],
+                vertical_spacing=0.1
+            )
+    
+            # Add traces for each phase
+            colors = px.colors.qualitative.Plotly
+            for i, phase in enumerate(phases):
+                phase_data = phase_results[phase]
+        
+                # Add time domain trace
+                fig.add_trace(
+                    go.Scatter(
+                        x=phase_data['time'],
+                        y=phase_data['current'],
+                        mode='lines',
+                        name=f'Phase {phase_map.get(phase, phase)}',
+                        line=dict(color=colors[i % len(colors)], width=1.5)
+                    ),
+                    row=i+1, col=1
+                )
+    
+            # Update layout
+            fig.update_layout(
+                title=f"Multi-Phase Time Domain Analysis",
+                template='plotly_dark' if dark_mode else 'plotly_white',
+                height=300*len(phases),
+                showlegend=True,
+                hovermode='closest'
+            )
+    
+            # Update y-axis title
+            for i in range(len(phases)):
+                fig.update_yaxes(title_text='Current (A)', row=i+1, col=1)
+    
+            # Update x-axis (only show on bottom plot)
+            for i in range(len(phases)-1):
+                fig.update_xaxes(showticklabels=False, row=i+1, col=1)
+            fig.update_xaxes(title_text='Time (s)', row=len(phases), col=1)
+
+        # Apply theme
+        fig = self._apply_theme(fig, dark_mode)
+
+        return fig
+    
     def generate_pdf_report(self, analysis_results, report_title, included_sections):
         """Generate a PDF report with analysis results"""
         from reportlab.lib.pagesizes import letter
@@ -1388,7 +1492,7 @@ def create_3d_harmonic_visualization(self, data, dark_mode=False):
         return fig
     
     def _apply_theme(self, fig, dark_mode=False):
-        """Apply theme colors to plotly figure"""
+        """Apply theme colors to plotly figure with proper contrast"""
         if dark_mode:
             fig.update_layout(
                 paper_bgcolor=DARK_MODE_STYLES['plot_paper_bg'],

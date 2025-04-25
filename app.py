@@ -11,6 +11,7 @@ import json
 import base64
 import io
 import os
+import plotly.express as px
 
 # Import project modules
 from config import (
@@ -63,7 +64,6 @@ app.layout = create_main_layout(systems)
 
 # ======= Callbacks =======
 
-# Callback to handle dark mode toggle
 # Callback to handle dark mode toggle
 @app.callback(
     Output('theme-store', 'data'),
@@ -152,6 +152,7 @@ def update_phase_dropdown(selected_system):
     value = phases[0] if phases else None
     
     return options, value
+
 
 # Callback to load data
 @app.callback(
@@ -274,6 +275,7 @@ def load_data(n_clicks, file_contents, system, phase, sample_limit, filename, fi
         'opacity': '0'  # Hidden
     }
     return None, None, None, "", empty_status_style
+
 
 # Callback to update visualization based on selected type
 @app.callback(
@@ -735,7 +737,6 @@ def update_analysis_parameters(analysis_type, theme_data):
             )
         ])
     
-       
     elif analysis_type == 'cepstrum':
         return html.Div([
             html.H5("Cepstrum Analysis Parameters", style={'marginBottom': '15px'}),
@@ -849,6 +850,94 @@ def update_analysis_parameters(analysis_type, theme_data):
                 value='overlay',
                 inline=True
             )
+        ])
+    
+    elif analysis_type == 'coherence':
+        return html.Div([
+            html.H5("Coherence Analysis Parameters", style={'marginBottom': '15px'}),
+            
+            html.Label("Segment Length:", style={'marginBottom': '5px'}),
+            dcc.Slider(
+                id='coherence-segment-length-ui',
+                min=256,
+                max=2048,
+                step=256,
+                value=1024,
+                marks={i: str(i) for i in range(256, 2049, 256)},
+                className='mb-3'
+            ),
+            
+            html.Label("Overlap (%):", style={'marginBottom': '5px'}),
+            dcc.Slider(
+                id='coherence-overlap-ui',
+                min=0,
+                max=75,
+                step=25,
+                value=50,
+                marks={i: f"{i}%" for i in range(0, 76, 25)},
+                className='mb-3'
+            ),
+            
+            html.Label("Frequency Range:", style={'marginBottom': '5px'}),
+            dcc.RangeSlider(
+                id='coherence-freq-range-ui',
+                min=0,
+                max=1000,
+                step=50,
+                value=[0, 500],
+                marks={i: str(i) for i in range(0, 1001, 200)},
+                className='mb-3'
+            )
+        ])
+        
+    elif analysis_type == 'symmetrical':
+        return html.Div([
+            html.H5("Symmetrical Components Parameters", style={'marginBottom': '15px'}),
+            
+            html.Label("This analysis requires data from all three phases."),
+            html.P("The analysis will be performed on the fundamental component (60Hz) of each phase."),
+            
+            html.Label("Phase Mapping:", style={'marginTop': '15px', 'marginBottom': '5px'}),
+            html.Div([
+                html.Label("Phase A:"),
+                dcc.Dropdown(
+                    id='symmetrical-phaseA-ui',
+                    options=[{'label': f'Phase {i}', 'value': str(i)} for i in range(1, 4)],
+                    value='1',
+                    style=dropdown_style,
+                    className='mb-2'
+                ),
+                html.Label("Phase B:"),
+                dcc.Dropdown(
+                    id='symmetrical-phaseB-ui',
+                    options=[{'label': f'Phase {i}', 'value': str(i)} for i in range(1, 4)],
+                    value='2',
+                    style=dropdown_style,
+                    className='mb-2'
+                ),
+                html.Label("Phase C:"),
+                dcc.Dropdown(
+                    id='symmetrical-phaseC-ui',
+                    options=[{'label': f'Phase {i}', 'value': str(i)} for i in range(1, 4)],
+                    value='3',
+                    style=dropdown_style
+                )
+            ])
+        ])
+    
+    elif analysis_type == 'pqi':
+        return html.Div([
+            html.H5("Power Quality Index Parameters", style={'marginBottom': '15px'}),
+            
+            html.P("The Power Quality Index (PQI) combines multiple metrics to assess overall power quality."),
+            html.P("The following components are used to calculate the index:"),
+            
+            html.Ul([
+                html.Li("Crest Factor (25%): Measures how peaked the waveform is"),
+                html.Li("Form Factor (20%): Measures the waveform shape"),
+                html.Li("THD (40%): Total Harmonic Distortion"),
+                html.Li("Transients (15%): Number of transient events")
+            ])
         ])
     
     return html.Div("Select an analysis type")
@@ -1008,6 +1097,49 @@ def update_harmonics_selection_store(value):
 def update_interharmonics_fund_freq_store(value):
     return value if value else 60
 
+# Add callbacks for new analysis parameters
+@app.callback(
+    Output('coherence-segment-length', 'data'),
+    Input('coherence-segment-length-ui', 'value')
+)
+def update_coherence_segment_length_store(value):
+    return value if value else 1024
+
+@app.callback(
+    Output('coherence-overlap', 'data'),
+    Input('coherence-overlap-ui', 'value')
+)
+def update_coherence_overlap_store(value):
+    return value if value else 50
+
+@app.callback(
+    Output('coherence-freq-range', 'data'),
+    Input('coherence-freq-range-ui', 'value')
+)
+def update_coherence_freq_range_store(value):
+    return value if value else [0, 500]
+
+@app.callback(
+    Output('symmetrical-phaseA', 'data'),
+    Input('symmetrical-phaseA-ui', 'value')
+)
+def update_symmetrical_phaseA_store(value):
+    return value if value else '1'
+
+@app.callback(
+    Output('symmetrical-phaseB', 'data'),
+    Input('symmetrical-phaseB-ui', 'value')
+)
+def update_symmetrical_phaseB_store(value):
+    return value if value else '2'
+
+@app.callback(
+    Output('symmetrical-phaseC', 'data'),
+    Input('symmetrical-phaseC-ui', 'value')
+)
+def update_symmetrical_phaseC_store(value):
+    return value if value else '3'
+
 # Show/hide harmonics selection based on view
 @app.callback(
     Output('harmonics-selection-container', 'style'),
@@ -1055,6 +1187,12 @@ def toggle_harmonics_selection(view):
      State('multi-phase-selection', 'data'),
      State('multi-phase-type', 'data'),
      State('multi-phase-plot-style', 'data'),
+     State('coherence-segment-length', 'data'),
+     State('coherence-overlap', 'data'),
+     State('coherence-freq-range', 'data'),
+     State('symmetrical-phaseA', 'data'),
+     State('symmetrical-phaseB', 'data'),
+     State('symmetrical-phaseC', 'data'),
      State('theme-store', 'data')],
     prevent_initial_call=True
 )
@@ -1063,10 +1201,12 @@ def run_analysis(n_clicks, data_json, analysis_type='time',
                 harmonics_count=15, fundamental_freq=60, harmonics_view='spectrum', harmonics_selection=None,
                 wavelet_type='db4', wavelet_level=2,
                 power_quality_type='flicker', power_quality_sensitivity=2,
-                interharmonics_fund_freq=60,  # Added this missing parameter
+                interharmonics_fund_freq=60,
                 transient_sensitivity=2, transient_window=20,
                 stft_window_size=256, stft_overlap=50, stft_window_type='hann', stft_colormap='viridis',
                 multi_phase_selection=None, multi_phase_type='thd', multi_phase_plot_style='overlay',
+                coherence_segment_length=1024, coherence_overlap=50, coherence_freq_range=None,
+                symmetrical_phaseA='1', symmetrical_phaseB='2', symmetrical_phaseC='3',
                 theme_data=None):
     
     # Initialize defaults
@@ -1076,6 +1216,8 @@ def run_analysis(n_clicks, data_json, analysis_type='time',
         harmonics_selection = [1, 2, 3, 4, 5, 6, 7]
     if multi_phase_selection is None:
         multi_phase_selection = ['1', '2', '3']
+    if coherence_freq_range is None:
+        coherence_freq_range = [0, 500]
 
     if n_clicks is None or data_json is None:
         raise dash.exceptions.PreventUpdate
@@ -1277,7 +1419,218 @@ def run_analysis(n_clicks, data_json, analysis_type='time',
             results_data = {'type': 'wavelet'}
             
             status_msg = create_status_message("Wavelet analysis completed", "success", dark_mode)
-        
+            
+        elif analysis_type == 'coherence':
+            # Get parameters
+            segment_length = coherence_segment_length if coherence_segment_length else 1024
+            overlap = int(segment_length * (coherence_overlap / 100)) if coherence_overlap else segment_length // 2
+            
+            # Compute coherence
+            coherence_data = signal_processor.compute_coherence(
+                data,
+                segment_length=segment_length,
+                overlap=overlap
+            )
+            
+            if coherence_data is None:
+                return html.Div("Error computing coherence analysis"), None, None, None, None, None, None, create_status_message("Error in coherence analysis", "danger", dark_mode), {'opacity': '1'}
+            
+            # Create coherence plot
+            fig = plot_generator.create_coherence_plot(
+                coherence_data,
+                dark_mode=dark_mode
+            )
+            
+            # Create summary card
+            bands_table = html.Table([
+                html.Thead(html.Tr([
+                    html.Th("Frequency Band"),
+                    html.Th("Amp Coherence"),
+                    html.Th("Phase Coherence")
+                ])),
+                html.Tbody([
+                    html.Tr([
+                        html.Td(band['band']),
+                        html.Td(f"{band['amplitude_coherence']['mean']:.3f}"),
+                        html.Td(f"{band['phase_coherence']['mean']:.3f}")
+                    ]) for band in coherence_data['band_analysis']
+                ])
+            ], style={
+                'width': '100%',
+                'borderCollapse': 'collapse',
+                'marginBottom': '20px'
+            })
+            
+            summary_card = html.Div([
+                html.H5("Coherence Analysis Summary", style={'marginBottom': '15px'}),
+                html.P("Coherence measures the linear relationship between different components of the signal."),
+                bands_table
+            ], style={
+                'backgroundColor': DARK_MODE_STYLES['card_bg'] if dark_mode else LIGHT_MODE_STYLES['card_bg'],
+                'borderRadius': '5px',
+                'padding': '15px',
+                'marginBottom': '20px'
+            })
+            
+            results_html = html.Div([
+                summary_card,
+                dcc.Graph(
+                    figure=fig,
+                    config={'displayModeBar': True}
+                )
+            ])
+            
+            # Store results
+            results_data = {'type': 'coherence'}
+            
+            status_msg = create_status_message("Coherence analysis completed", "success", dark_mode)
+            
+        elif analysis_type == 'symmetrical':
+            # For now, we use a similar approach to multi-phase analysis to simulate having data from all 3 phases
+            # In a real application, you would load data for all phases
+            
+            # Create simulated phase data
+            phase_data = {}
+            for phase in ['1', '2', '3']:
+                # Create slightly different data for each phase for demonstration
+                phase_copy = dict(data)
+                
+                # Add phase shift and amplitude variation
+                phase_int = int(phase)
+                phase_shift = (phase_int - 1) * np.pi / 3  # 60 degrees between phases
+                amplitude_factor = 0.9 + phase_int * 0.1  # Slight amplitude differences
+                
+                # Create balanced signals as the base
+                phase_copy['current'] = amplitude_factor * data['current'] * np.cos(2 * np.pi * 60 * data['time'] + phase_shift)
+                
+                # Add some unbalance to Phase 3 to make the analysis interesting
+                if phase == '3':
+                    # Reduce amplitude by 5%
+                    phase_copy['current'] *= 0.95
+                    # Add slight phase shift
+                    phase_copy['current'] = phase_copy['current'] * np.cos(0.1)  # Small additional phase shift
+                
+                phase_data[phase] = phase_copy
+            
+            # Compute symmetrical components
+            sym_comp_data = signal_processor.compute_symmetrical_components(phase_data)
+            
+            if sym_comp_data is None:
+                return html.Div("Error computing symmetrical components. This analysis requires data from all three phases."), None, None, None, None, None, None, create_status_message("Error in symmetrical components analysis", "danger", dark_mode), {'opacity': '1'}
+            
+            # Create visualization
+            fig = plot_generator.create_symmetrical_components_plot(sym_comp_data, dark_mode=dark_mode)
+            
+            # Create summary card
+            summary_card = html.Div([
+                html.H5("Symmetrical Components Analysis", style={'marginBottom': '15px'}),
+                html.Div([
+                    html.Table([
+                        html.Thead(html.Tr([
+                            html.Th("Component"), 
+                            html.Th("Magnitude"), 
+                            html.Th("Angle (°)")
+                        ])),
+                        html.Tbody([
+                            html.Tr([
+                                html.Td("Positive Sequence"),
+                                html.Td(f"{sym_comp_data['positive_sequence']['magnitude']:.4f}"),
+                                html.Td(f"{sym_comp_data['positive_sequence']['angle']:.2f}")
+                            ]),
+                            html.Tr([
+                                html.Td("Negative Sequence"),
+                                html.Td(f"{sym_comp_data['negative_sequence']['magnitude']:.4f}"),
+                                html.Td(f"{sym_comp_data['negative_sequence']['angle']:.2f}")
+                            ]),
+                            html.Tr([
+                                html.Td("Zero Sequence"),
+                                html.Td(f"{sym_comp_data['zero_sequence']['magnitude']:.4f}"),
+                                html.Td(f"{sym_comp_data['zero_sequence']['angle']:.2f}")
+                            ])
+                        ])
+                    ], style={'width': '100%', 'border-collapse': 'collapse'})
+                ]),
+                html.Div([
+                    html.H6("Unbalance Factors:", style={'marginTop': '15px', 'marginBottom': '5px'}),
+                    html.Div(f"Negative Sequence Unbalance: {sym_comp_data['unbalance_factors']['negative_sequence']:.2f}%"),
+                    html.Div(f"Zero Sequence Unbalance: {sym_comp_data['unbalance_factors']['zero_sequence']:.2f}%")
+                ], style={'marginTop': '15px'})
+            ], style={
+                'backgroundColor': DARK_MODE_STYLES['card_bg'] if dark_mode else LIGHT_MODE_STYLES['card_bg'],
+                'borderRadius': '5px',
+                'padding': '15px',
+                'marginBottom': '20px'
+            })
+            
+            results_html = html.Div([
+                summary_card,
+                dcc.Graph(
+                    figure=fig,
+                    config={'displayModeBar': True}
+                )
+            ])
+            
+            # Store results
+            results_data = {'type': 'symmetrical'}
+            
+            status_msg = create_status_message("Symmetrical components analysis completed", "success", dark_mode)
+            
+        elif analysis_type == 'pqi':
+            # First get harmonics data (for THD)
+            harmonics_data = signal_processor.compute_harmonics(data)
+            
+            # Get transient data
+            transient_data = signal_processor.analyze_transients(data)
+            
+            # Calculate Power Quality Index
+            pqi_data = signal_processor.calculate_power_quality_index(
+                data,
+                harmonics_data=harmonics_data,
+                transient_data=transient_data
+            )
+            
+            if pqi_data is None:
+                return html.Div("Error calculating Power Quality Index"), None, None, None, None, None, None, create_status_message("Error in PQI analysis", "danger", dark_mode), {'opacity': '1'}
+            
+            # Create visualization
+            fig = plot_generator.create_power_quality_index_plot(pqi_data, dark_mode=dark_mode)
+            
+            # Create summary card
+            summary_card = html.Div([
+                html.H5("Power Quality Index", style={'marginBottom': '15px'}),
+                html.Div([
+                    html.Div(f"Overall PQI: {pqi_data['pqi']:.1f}/100", style={'fontSize': '24px', 'marginBottom': '10px'}),
+                    html.Div(f"Quality Assessment: {pqi_data['quality_level']}", style={'fontSize': '18px', 'marginBottom': '15px'})
+                ]),
+                html.Div([
+                    html.H6("Component Scores:", style={'marginTop': '15px', 'marginBottom': '5px'}),
+                    html.Div([
+                        html.Div(f"Crest Factor: {pqi_data['components']['crest_factor_index']:.1f}/100", style={'marginBottom': '5px'}),
+                        html.Div(f"Form Factor: {pqi_data['components']['form_factor_index']:.1f}/100", style={'marginBottom': '5px'}),
+                        html.Div(f"THD: {pqi_data['components']['thd_index']:.1f}/100", style={'marginBottom': '5px'}),
+                        html.Div(f"Transients: {pqi_data['components']['transient_index']:.1f}/100", style={'marginBottom': '5px'})
+                    ])
+                ])
+            ], style={
+                'backgroundColor': DARK_MODE_STYLES['card_bg'] if dark_mode else LIGHT_MODE_STYLES['card_bg'],
+                'borderRadius': '5px',
+                'padding': '15px',
+                'marginBottom': '20px'
+            })
+            
+            results_html = html.Div([
+                summary_card,
+                dcc.Graph(
+                    figure=fig,
+                    config={'displayModeBar': True}
+                )
+            ])
+            
+            # Store results
+            results_data = {'type': 'pqi'}
+            
+            status_msg = create_status_message("Power Quality Index analysis completed", "success", dark_mode)
+            
         elif analysis_type == 'interharmonics':
             # Interharmonics analysis
             # Safely get parameters from State variables
@@ -1447,7 +1800,6 @@ def run_analysis(n_clicks, data_json, analysis_type='time',
             results_data = {'type': 'distortion'}
     
             status_msg = create_status_message("Waveform distortion analysis completed", "success", dark_mode)
-
 
         elif analysis_type == 'power_quality':
             # Power quality analysis

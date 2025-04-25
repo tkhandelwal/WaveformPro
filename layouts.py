@@ -573,7 +573,17 @@ def create_main_layout(systems, dark_mode=False):
                 # For Cepstrum analysis
                 dcc.Store(id='cepstrum-window-type', data='hann'),
                 dcc.Store(id='cepstrum-threshold', data=10),
+
+                # For Coherence Analysis
+                dcc.Store(id='coherence-segment-length', data=1024),
+                dcc.Store(id='coherence-overlap', data=50),
+                dcc.Store(id='coherence-freq-range', data=[0, 500]),
                 
+                # For Symmetrical Components
+                dcc.Store(id='symmetrical-phaseA', data='1'),
+                dcc.Store(id='symmetrical-phaseB', data='2'),
+                dcc.Store(id='symmetrical-phaseC', data='3'),
+
                 # For Distortion analysis
                 dcc.Store(id='distortion-fund-freq', data=60),
                 dcc.Store(id='distortion-harmonics', data=40),

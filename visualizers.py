@@ -103,6 +103,181 @@ class PlotGenerator:
         
         return fig
     
+    def create_power_quality_index_plot(self, pqi_data, dark_mode=False):
+        """Create Power Quality Index visualization"""
+        if pqi_data is None or 'pqi' not in pqi_data:
+            return go.Figure()
+        
+        # Create figure with subplots
+        fig = sp.make_subplots(
+            rows=2, cols=2,
+            subplot_titles=(
+                'Overall Power Quality Index', 
+                'Component Indices',
+                'Raw Metrics',
+                'Quality Assessment'
+            ),
+            specs=[
+                [{"type": "indicator"}, {"type": "bar"}],
+                [{"type": "table"}, {"type": "domain"}]
+            ]
+        )
+    
+        # 1. Gauge indicator for overall PQI
+        fig.add_trace(
+            go.Indicator(
+                mode="gauge+number+delta",
+                value=pqi_data['pqi'],
+                title={'text': "Power Quality Index"},
+                domain={'x': [0, 1], 'y': [0, 1]},
+                gauge={
+                    'axis': {'range': [0, 100]},
+                    'bar': {'color': self._get_quality_color(pqi_data['pqi'])},
+                    'steps': [
+                        {'range': [0, 40], 'color': "red"},
+                        {'range': [40, 60], 'color': "orange"},
+                        {'range': [60, 80], 'color': "yellow"},
+                        {'range': [80, 90], 'color': "lightgreen"},
+                        {'range': [90, 100], 'color': "green"}
+                    ],
+                    'threshold': {
+                        'line': {'color': "black", 'width': 4},
+                        'thickness': 0.75,
+                        'value': 80
+                    }
+                },
+                delta={'reference': 80, 'increasing': {'color': "green"}, 'decreasing': {'color': "red"}}
+            ),
+            row=1, col=1
+        )
+    
+        # 2. Component indices bar chart
+        components = pqi_data['components']
+        fig.add_trace(
+            go.Bar(
+                x=['Crest Factor', 'Form Factor', 'THD', 'Transients'],
+                y=[
+                    components['crest_factor_index'],
+                    components['form_factor_index'],
+                    components['thd_index'],
+                    components['transient_index']
+                ],
+                marker_color=[
+                    self._get_quality_color(components['crest_factor_index']),
+                    self._get_quality_color(components['form_factor_index']),
+                    self._get_quality_color(components['thd_index']),
+                    self._get_quality_color(components['transient_index'])
+                ]
+            ),
+            row=1, col=2
+        )
+    
+        # 3. Raw metrics table
+        raw_metrics = pqi_data['raw_metrics']
+        metrics_table = go.Table(
+            header=dict(
+                values=['Metric', 'Value', 'Ideal', 'Score'],
+                font=dict(size=12, color='white' if dark_mode else 'black'),
+                fill_color='rgba(0, 102, 204, 0.8)'
+            ),
+            cells=dict(
+                values=[
+                    ['Crest Factor', 'Form Factor', 'THD (%)', 'Transients'],
+                    [
+                        f"{raw_metrics['crest_factor']:.3f}",
+                        f"{raw_metrics['form_factor']:.3f}",
+                        f"{raw_metrics['thd']:.2f}",
+                        f"{raw_metrics['transient_count']}"
+                    ],
+                    ['1.414', '1.11', '0', '0'],
+                    [
+                        f"{components['crest_factor_index']:.1f}",
+                        f"{components['form_factor_index']:.1f}",
+                        f"{components['thd_index']:.1f}",
+                        f"{components['transient_index']:.1f}"
+                    ]
+                ],
+                font=dict(size=11),
+                fill_color=[
+                    'rgba(242, 242, 242, 1)' if not dark_mode else 'rgba(50, 50, 50, 1)',
+                    'rgba(242, 242, 242, 1)' if not dark_mode else 'rgba(50, 50, 50, 1)',
+                    'rgba(242, 242, 242, 1)' if not dark_mode else 'rgba(50, 50, 50, 1)',
+                    [
+                        self._get_quality_color_with_alpha(components['crest_factor_index']),
+                        self._get_quality_color_with_alpha(components['form_factor_index']),
+                        self._get_quality_color_with_alpha(components['thd_index']),
+                        self._get_quality_color_with_alpha(components['transient_index'])
+                    ]
+                ]
+            )
+        )
+        fig.add_trace(metrics_table, row=2, col=1)
+    
+        # 4. Quality assessment pie chart
+        # Fix: Change title position to a valid value
+        fig.add_trace(
+            go.Pie(
+                labels=['Crest Factor', 'Form Factor', 'THD', 'Transients'],
+                values=[0.25, 0.20, 0.40, 0.15],  # Component weights
+                textinfo='label+percent',
+                marker=dict(
+                    colors=[
+                        self._get_quality_color(components['crest_factor_index']),
+                        self._get_quality_color(components['form_factor_index']),
+                        self._get_quality_color(components['thd_index']),
+                        self._get_quality_color(components['transient_index'])
+                    ]
+                ),
+                hole=0.4,
+                title=dict(
+                    text=f"Quality: {pqi_data['quality_level']}",
+                    position="middle center",  # Changed from "middle" to "middle center"
+                    font=dict(size=14)
+                )
+            ),
+            row=2, col=2
+        )
+    
+        # Update layout
+        fig.update_layout(
+            title='Power Quality Index Analysis',
+            height=800
+        )
+    
+        # Update y-axis titles
+        fig.update_yaxes(title_text='Score (0-100)', row=1, col=2)
+    
+        # Apply theme
+        fig = self._apply_theme(fig, dark_mode)
+    
+        return fig
+
+    def _get_quality_color(self, index):
+        """Get color based on quality index"""
+        if index >= 90:
+            return 'green'
+        elif index >= 80:
+            return 'lightgreen'
+        elif index >= 60:
+            return 'yellow'
+        elif index >= 40:
+            return 'orange'
+        else:
+            return 'red'
+
+    def _get_quality_color_with_alpha(self, index):
+        """Get color with alpha based on quality index"""
+        if index >= 90:
+            return 'rgba(0, 128, 0, 0.3)'  # green
+        elif index >= 80:
+            return 'rgba(144, 238, 144, 0.3)'  # lightgreen
+        elif index >= 60:
+            return 'rgba(255, 255, 0, 0.3)'  # yellow
+        elif index >= 40:
+            return 'rgba(255, 165, 0, 0.3)'  # orange
+        else:
+            return 'rgba(255, 0, 0, 0.3)'  # red
+
     def create_frequency_domain_plot(self, fft_data, scale='db', max_freq=500, dark_mode=False):
         """Create frequency domain plot from FFT data"""
         if fft_data is None or 'freq' not in fft_data or len(fft_data['freq']) == 0:
@@ -1401,6 +1576,215 @@ class PlotGenerator:
     
         buffer.seek(0)
         return buffer
+
+    def create_symmetrical_components_plot(self, sym_comp_data, dark_mode=False):
+        """Create symmetrical components visualization"""
+        if sym_comp_data is None:
+            return go.Figure()
+        
+        # Create figure with subplots
+        fig = sp.make_subplots(
+            rows=1, cols=2,
+            subplot_titles=('Sequence Components', 'Phasor Diagram'),
+            specs=[[{"type": "bar"}, {"type": "polar"}]]
+        )
+    
+        # Extract data
+        sequences = ['Positive', 'Negative', 'Zero']
+        magnitudes = [
+            sym_comp_data['positive_sequence']['magnitude'],
+            sym_comp_data['negative_sequence']['magnitude'],
+            sym_comp_data['zero_sequence']['magnitude']
+        ]
+        angles = [
+            sym_comp_data['positive_sequence']['angle'],
+            sym_comp_data['negative_sequence']['angle'],
+            sym_comp_data['zero_sequence']['angle']
+        ]
+    
+        # 1. Bar chart of sequence magnitudes
+        fig.add_trace(
+            go.Bar(
+                x=sequences,
+                y=magnitudes,
+                text=[f"{m:.4f}" for m in magnitudes],
+                textposition='auto',
+                marker_color=['#2ca02c', '#d62728', '#1f77b4']
+            ),
+            row=1, col=1
+        )
+    
+        # 2. Polar plot for phasor representation
+        colors = ['#2ca02c', '#d62728', '#1f77b4']
+        for i, seq in enumerate(sequences):
+            fig.add_trace(
+                go.Scatterpolar(
+                    r=[0, magnitudes[i]],
+                    theta=[0, angles[i]],
+                    mode='lines+markers',
+                    line=dict(width=3, color=colors[i]),
+                    marker=dict(size=[8, 12], color=colors[i]),
+                    name=f"{seq} Sequence"
+                ),
+                row=1, col=2
+            )
+    
+        # Update layout
+        fig.update_layout(
+            title=f"Symmetrical Components Analysis<br>Negative Sequence Unbalance: {sym_comp_data['unbalance_factors']['negative_sequence']:.2f}%, Zero Sequence Unbalance: {sym_comp_data['unbalance_factors']['zero_sequence']:.2f}%",
+            height=500,
+            template='plotly_dark' if dark_mode else 'plotly_white'
+        )
+    
+        # Update axes
+        fig.update_xaxes(title_text="Sequence Component", row=1, col=1)
+        fig.update_yaxes(title_text="Magnitude", row=1, col=1)
+    
+        # Update polar axis
+        fig.update_layout(
+            polar=dict(
+                radialaxis=dict(
+                    visible=True,
+                    range=[0, max(magnitudes) * 1.1]
+                ),
+                angularaxis=dict(
+                    visible=True,
+                    direction="clockwise"
+                )
+            )
+        )
+    
+        # Apply theme
+        fig = self._apply_theme(fig, dark_mode)
+    
+        return fig
+    
+    def create_coherence_plot(self, coherence_data, dark_mode=False):
+        """Create coherence analysis plot"""
+        if coherence_data is None or 'frequency' not in coherence_data:
+            return go.Figure()
+        
+        # Extract data
+        f = coherence_data['frequency']
+        amp_coherence = coherence_data['amplitude_coherence']
+        phase_coherence = coherence_data['phase_coherence']
+        band_analysis = coherence_data['band_analysis']
+    
+        # Create figure with subplots
+        fig = sp.make_subplots(
+            rows=2, cols=2,
+            subplot_titles=(
+                'Amplitude Coherence', 
+                'Phase Coherence',
+                'Coherence by Frequency Band',
+                'Band Analysis Summary'
+            ),
+            specs=[
+                [{"type": "scatter"}, {"type": "scatter"}],
+                [{"type": "bar"}, {"type": "table"}]
+            ]
+        )
+    
+        # 1. Amplitude Coherence Plot
+        fig.add_trace(
+            go.Scatter(
+                x=f,
+                y=amp_coherence,
+                mode='lines',
+                name='Amplitude Coherence',
+                line=dict(color='blue', width=2)
+            ),
+            row=1, col=1
+        )
+    
+        # 2. Phase Coherence Plot
+        fig.add_trace(
+            go.Scatter(
+                x=f,
+                y=phase_coherence,
+                mode='lines',
+                name='Phase Coherence',
+                line=dict(color='red', width=2)
+            ),
+            row=1, col=2
+        )
+    
+        # 3. Coherence by Frequency Band
+        band_names = [b['band'] for b in band_analysis]
+        amp_means = [b['amplitude_coherence']['mean'] for b in band_analysis]
+        phase_means = [b['phase_coherence']['mean'] for b in band_analysis]
+    
+        fig.add_trace(
+            go.Bar(
+                x=band_names,
+                y=amp_means,
+                name='Amplitude Coherence',
+                marker_color='blue'
+            ),
+            row=2, col=1
+        )
+    
+        fig.add_trace(
+            go.Bar(
+                x=band_names,
+                y=phase_means,
+                name='Phase Coherence',
+                marker_color='red'
+            ),
+            row=2, col=1
+        )
+    
+        # 4. Band Analysis Table
+        table_headers = ['Frequency Band', 'Amp Coh Mean', 'Amp Coh Max', 'Phase Coh Mean', 'Phase Coh Max']
+        table_data = []
+    
+        for band in band_analysis:
+            table_data.append([
+                band['band'],
+                f"{band['amplitude_coherence']['mean']:.3f}",
+                f"{band['amplitude_coherence']['max']:.3f}",
+                f"{band['phase_coherence']['mean']:.3f}",
+                f"{band['phase_coherence']['max']:.3f}"
+            ])
+    
+        fig.add_trace(
+            go.Table(
+                header=dict(
+                    values=table_headers,
+                    font=dict(size=12, color='white' if dark_mode else 'black'),
+                    fill_color='rgba(0, 102, 204, 0.8)'
+                ),
+                cells=dict(
+                    values=list(zip(*table_data)),
+                    font=dict(size=11),
+                    fill_color='rgba(242, 242, 242, 1)' if not dark_mode else 'rgba(50, 50, 50, 1)'
+                )
+            ),
+            row=2, col=2
+        )
+    
+        # Update layout
+        fig.update_layout(
+            title='Coherence Analysis',
+            barmode='group',
+            template='plotly_dark' if dark_mode else 'plotly_white',
+            height=800
+        )
+    
+        # Update x and y-axis titles
+        fig.update_xaxes(title_text='Frequency (Hz)', row=1, col=1)
+        fig.update_yaxes(title_text='Coherence', row=1, col=1)
+    
+        fig.update_xaxes(title_text='Frequency (Hz)', row=1, col=2)
+        fig.update_yaxes(title_text='Coherence', row=1, col=2)
+    
+        fig.update_xaxes(title_text='Frequency Band', row=2, col=1)
+        fig.update_yaxes(title_text='Mean Coherence', row=2, col=1)
+    
+        # Apply theme
+        fig = self._apply_theme(fig, dark_mode)
+    
+        return fig
     
     def create_multi_phase_fft_plot(self, multi_phase_data, plot_style='overlay', dark_mode=False, phase_map=None):
         """Create multi-phase FFT comparison plot"""
